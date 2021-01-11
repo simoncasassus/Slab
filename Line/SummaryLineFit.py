@@ -15,8 +15,8 @@ from  scipy.signal import medfilt2d
 
 include_path='/Users/simon/common/python/include/'
 sys.path.append(include_path)
-import Resamp
-import Cube2Im
+import ImUtils.Resamp as Resamp
+import ImUtils.Cube2Im as Cube2Im
 
 #import Vtools
 
@@ -33,7 +33,7 @@ def colorbar(Mappable, Orientation='horizontal',cbfmt="%.1e"):
             format=cbfmt
     )
 
-def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_errormap=False, filename_fiterrormap=False,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=False,DoGreyCont=False,vsyst=0.,nplotsx=2,nplotsy=2,SymmetricRange=False,MedianvalRange=False,DoCB=True,cmap='RdBu_r',MedRms=True,Zoom=True,scaleim=1.,cbfmt="%.1e",cbunits=''):
+def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_errormap=False, filename_fiterrormap=False,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=False,DoGreyCont=False,vsyst=0.,nplotsx=2,nplotsy=2,SymmetricRange=False,MedianvalRange=False,DoCB=True,cmap='RdBu_r',MedRms=True,Zoom=True,scaleim=1.,cbfmt="%.1e",cbunits='',DoInterestingRegion=False):
 
         print( "nplotsx ", nplotsx, iplotpos)
         ax = plt.subplot(nplotsy, nplotsx, iplotpos)
@@ -54,8 +54,8 @@ def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_erro
 
         if ((iplotpos % nplotsx) == 1):
                 ax.set_ylabel(r'$\delta$  offset / arcsec')
-        if (iplotpos > (nplotsx*(nplotsy-1))):
-                ax.set_xlabel(r'$\alpha$ offset / arcsec')
+        #if (iplotpos > (nplotsx*(nplotsy-1))):
+        #        # ax.set_xlabel(r'$\alpha$ offset / arcsec')
 
 
         print( "loading filename_grey",filename_grey)
@@ -264,6 +264,20 @@ def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_erro
                 e.set_alpha(0.5)
                 axcb.add_artist(e)
 
+        if DoInterestingRegion:
+                from matplotlib.patches import Ellipse
+
+                #Bmax/2 0.0579669470623286; Bmin/2 0.038567442164739;
+                #PA-51.682370436407deg (South of East);
+
+                bmaj = 0.25
+                bmin = 0.25
+                bpa = 0.
+                e = Ellipse(xy=[-0.276,-0.378], width=bmin, height=bmaj, angle=-bpa,color='yellow',fill=False)
+                e.set_clip_box(axcb.bbox)
+                #e.set_facecolor('yellow')
+                #e.set_alpha(0.5)
+                axcb.add_artist(e)
 
 
 
@@ -309,7 +323,7 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
             nplotsx=3
             nplotsy=1
         else:
-            figsize=(16., 4.)
+            figsize=(13., 3.5)
             nplotsx=4
             nplotsy=1
 
@@ -336,7 +350,7 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
         filename_errormap=False
         iplotpos += 1
         #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=False,DoCB=True, cmap=cmap,cbfmt='%.2f',cbunits=r'$\rm{g}\,\rm{cm}^{-2}$',Zoom=Zoom)
+        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=True,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=False,DoCB=True, cmap=cmap,cbfmt='%.2f',cbunits=r'$\rm{g}\,\rm{cm}^{-2}$',Zoom=Zoom,DoInterestingRegion=False)
 
 
         atitle=r'$T$'
@@ -346,7 +360,7 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
         filename_errormap=False
         iplotpos += 1
         #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=5.,DoCB=True, cmap=cmap,scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{K}$',Zoom=Zoom)
+        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=5.,DoCB=True, cmap=cmap,scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{K}$',Zoom=Zoom,DoInterestingRegion=False)
 
 
         atitle=r'$v^\circ$'
@@ -356,7 +370,7 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
         filename_errormap=False
         iplotpos += 1
         #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=2.,DoCB=True, cmap='RdBu_r',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{km}\,\rm{s}^{-1}$',Zoom=Zoom)
+        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=2.,DoCB=True, cmap='RdBu_r',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{km}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False)
 
 
         
@@ -376,7 +390,7 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
             filename_errormap=False
             iplotpos += 1
             #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=3.,DoCB=True, cmap=cmap,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom)
+            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=3.,DoCB=True, cmap=cmap,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False)
 
 
                 

@@ -1,0 +1,26 @@
+
+Shrink canvas to save disk space:
+
+run_shrink.py
+
+Fit multiple isotopologues:
+
+run_linefit.py  <<<< MASTER SCRIPT
+
+
+generate summary of line results:
+
+run_summary.py
+
+
+generate and examine model residuals:
+
+gen_Dmoments_residuals.py
+
+examine individual spectra:
+
+gen_comparspectra.py
+
+
+
+

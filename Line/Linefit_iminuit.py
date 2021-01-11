@@ -17,7 +17,7 @@ from iminuit import Minuit
 from astropy.convolution import Gaussian2DKernel, convolve_fft
 import astropy.units as u
 import astropy.constants as const
-from astropy.modeling.blackbody import blackbody_nu
+#from astropy.modeling.blackbody import blackbody_nu
 #from astropy.modeling.models import BlackBody
 from copy import deepcopy
 
@@ -43,9 +43,6 @@ def Tbrightness(I_nu,nu):
     return Tb
 
 def loadfitsdata(namefile):
-    """
-    Open a FITS image and return datacube and header, namefile without '.fits'
-    """
     hdu=pf.open(namefile)
     datacube = hdu[0].data
     hdr = hdu[0].header
@@ -65,17 +62,31 @@ def loadfitsdata(namefile):
         hdr['BMIN']=bmin/3600.
         hdr['BPA']=bpa
         
-        
+    if (len(datacube.shape) > 3):
+        print("len(datacube)",len(datacube.shape))
+        datacube=datacube[0,:,:,:]
+
     return datacube, hdr
 
 
 
 
+#def bbody(T,nu):
+#    """
+#    Blackbody flux for a given temperature and frequency erg / (cm2 Hz s sr) (cgs system)
+#    """
+#    return blackbody_nu(nu, T).cgs.value
+#
+
+
 def bbody(T,nu):
-    """
-    Blackbody flux for a given temperature and frequency erg / (cm2 Hz s sr) (cgs system)
-    """
-    return blackbody_nu(nu, T).cgs.value
+
+    bb =  ( (2. * h_P * nu**3 ) / c_light**2) / (np.exp( h_P * nu /  (k_B * T)) - 1.)
+    
+    return bb
+
+
+
 
 
 def phi(Tk,nu,nu0,vturb, molecule_mass):
@@ -85,7 +96,7 @@ def phi(Tk,nu,nu0,vturb, molecule_mass):
     nu: Array of frecuencies to sample the line profile.
     nu0: Center of line emission.
     vturb: Turbulent velocity or dispersion velocity along the line of sight (cgs system). 
-    molecule_mass: Molecular mass.
+    molecule_mass: Molecular mass, in g.
     """ 
     sigma_nu = (nu0/c_light)*np.sqrt(k_B*Tk/molecule_mass + vturb**2 )
     phi0 = 1./(sigma_nu*np.sqrt(2*np.pi))
@@ -96,16 +107,6 @@ def phi(Tk,nu,nu0,vturb, molecule_mass):
     return gaussprofile
 
 
-#def tau(Tk,nu,nu0,nco,vturb,angle, f_abund, molecule_mass, kappa_L):
-#    """
-#    T_k: Temperature.
-#    nu: Array of frecuencies to sample the line profile.
-#    nu0: Center of line emission.
-#    nco: Column density for excited state
-#    vturb: Turbulent velocity or dispersion velocity along the line of sight(cgs system).
-#    iso: CO isotopologue 
-#    """
-#    return nco*f_abund*kappa_L*phi(Tk,nu,nu0,vturb,angle, molecule_mass)/math.cos(incli)
 
 
 def Kappa_line(Tk,iiso):
@@ -119,25 +120,17 @@ def Kappa_line(Tk,iiso):
     B_12 = B_21 * g_Jup/g_Jlo
     frac_lowerlevel = g_Jlo*np.exp(-(E_lo/ (k_B * Tk)))/ Zpart
 
-    #if ViewIndividualFits:
-    #    print("frac_lowerlevel",frac_lowerlevel)
 
     kappa_L = (h_P * restfreq / (4. *np.pi))* frac_lowerlevel * B_12 * (1. - np.exp( - (h_P * restfreq / (k_B * Tk)))) / mH2
     return kappa_L
 
 
 def intensity(nu, Tk, nu0, Sigma_g, vturb,iiso):
-    """
-    Solution to radiative transfer equation
-    """
         
-
     kappa_L=Kappa_line(Tk,iiso)
 
     molecule_mass=molecule_masses[iiso]
 
-    #NH2=Sigma_g/mH2
-    #NCO=NH2*1E-4 
     f_abund=f_abunds[iiso]
 
     phiprof=phi(Tk,nu,nu0,vturb,molecule_mass)
@@ -151,7 +144,6 @@ def intensity(nu, Tk, nu0, Sigma_g, vturb,iiso):
 
     Iemerge = bbody(Tk,nu)*(1.0-np.exp(-tau_L))   # return units in CGS
 
-    #print("Iemerge ",max(np.fabs(Iemerge)),iiso,Sigma_g,kappa_L,np.max(tau_L),f_CO,f_abund,np.max(phiprof))
 
     return  Iemerge, tau_nu0, tau_L
 
@@ -166,10 +158,6 @@ def intensity(nu, Tk, nu0, Sigma_g, vturb,iiso):
 
 
 def Part(levelenergies, g_Js, Tk):
-    """
-    Returns Q
-    T: Temperature
-    """
     return np.sum(g_Js*np.exp(-levelenergies/(k_B*Tk)))
 
 
@@ -197,8 +185,6 @@ def master_chi2(nuss, v0, Temp, Sigma_g, vturb, datas, rmss):
 
         
 def parspar(n):
-    #i = int(n/ndim)
-    #j = int(n%ndim)
     j = n[0]
     i = n[1]
 
@@ -221,7 +207,6 @@ def parspar(n):
         T_inits.append(aT_init)
 
         velocities=velocitiess[iiso]
-        #vels = (nus-nu0_init)*c_light*1e-5/nu0_init  # km/s 
         vel_peak = velocities[data==data.max()][0]
         vel_peaks.append(vel_peak)
         I_peaks.append(data.max())
@@ -229,7 +214,6 @@ def parspar(n):
     T_init=T_inits[0] # max(T_inits)
     T_limits = (0.5*T_init,1.5*T_init)
 
-    #istrongest=(I_peaks==I_peaks.max())[0]
 
     vel_peak=vel_peaks[0]
     v0_init=vel_peak * 1E3 * 1E2 # init centroid velocity in CGS
@@ -244,7 +228,7 @@ def parspar(n):
         nus=nuss[iiso]
 
         datamax = data.max()
-        nu0_init= nus[np.argmax(data)] # selected_velocities[signal_a==signal_a.max()]
+        nu0_init= nus[np.argmax(data)] 
 
 
         noise = data[(velocities<vel_peak-1.) | (velocities>vel_peak+1.)]
@@ -263,11 +247,14 @@ def parspar(n):
         if (datamax < (3. *rms)):
             typicalint = 3.*rms
 
+            
         Sigma_g_thin = typicalint/ (bbody(T_init,nu0_init)*kappa_L*f_CO*f_abund*phi(T_init,restfreq,restfreq,vturb_init,molecule_mass))
         Sigma_g_thins.append(Sigma_g_thin)
 
+        if ViewIndividualFits:
+            print("iiso ",iiso,"typical int ", typicalint,"Sigma_g_thin",Sigma_g_thin, "f_CO", f_CO, "f_abund", f_abund)
 
-    Sigma_g_init=min(Sigma_g_thins)
+    Sigma_g_init=max(Sigma_g_thins)
 
     datamin = data.min()
     #Icont_0 = datamin
@@ -276,8 +263,34 @@ def parspar(n):
     #Icont_0_lim=(0.5*Icont_0,1.2*Icont_0)
 
     if ViewIndividualFits:
+        print("Initial Conditions")
         print("T_init",T_init)
         print("Sigma_g_init",Sigma_g_init)
+
+        for iiso,restfreq in enumerate(restfreqs):
+            nus=nuss[iiso]
+            
+            v0=v0_init
+            nu0=restfreq-(v0/c_light)*restfreq
+            data=datas[iiso]
+            rms=rmss[iiso]
+
+            initfit=[T_init,vturb_init,Sigma_g_init,v0_init]
+            modelij, tau0ij, taus = intensity(nus, initfit[0], nu0, initfit[2], initfit[1],iiso)
+
+            print("iiso ",iiso)
+            specobs=np.zeros((len(data),2))
+            specmod=np.zeros((len(data),2))
+            specobs[:,0]=velocitiess[iiso]
+            specobs[:,1]=datas[iiso]
+            specmod[:,0]=velocitiess[iiso]
+            specmod[:,1]=modelij
+
+            Vtools.Spec([specobs,specmod])
+
+
+
+
         
 
     f = lambda Temp,vturb,Sigma_g, v0: master_chi2(nuss, v0, Temp, Sigma_g, vturb, datas, rmss)
@@ -377,7 +390,6 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     print('Opening FITS images ')
     for ainputcubefile in inputcubefiles:
         cubo, head = loadfitsdata(ainputcubefile)
-        cubo=cubo[0,:,:,:]
         pixscl = head['CDELT2'] * 3600.
         unitfactor=1.
         if re.search(r"head",InputDataUnits,re.IGNORECASE):
@@ -421,23 +433,28 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     jj=np.arange(0,ny)
     iis, jjs = np.meshgrid(ii, jj)
     
-    #include_path='/Users/simon/common/python/include/'
-    #sys.path.append(include_path)
-    #import Vtools
-    #Vtools.View(iis)
-    #Vtools.View(jjs)
 
 
-    X0 = ((float(nx)-1.)/2.)
-    Y0 = ((float(ny)-1.)/2.)
-    irrs=np.sqrt( (iis-X0)**2 + (jjs-Y0)**2)
-    mask=np.zeros([ny,nx])
-    mask[np.where(irrs < maskradpixels)]=1
     tasks=[]
-    for i in ii:
-        for j in jj:
-            if (mask[j,i]==1):
-                tasks.append([j,i])
+    if ViewIndividualFits:
+        for apos in ViewIndividualFits:
+            xoffset=apos[1]
+            yoffset=apos[0]
+            ioff=int(((xoffset/3600.)/head['CDELT1'])+(head['CRPIX1']-1))
+            joff=int(((yoffset/3600.)/head['CDELT2'])+(head['CRPIX2']-1))
+            print("ioff ",ioff," joff ",joff)
+            tasks.append([joff,ioff])
+            
+    else:
+        X0 = ((float(nx)-1.)/2.)
+        Y0 = ((float(ny)-1.)/2.)
+        irrs=np.sqrt( (iis-X0)**2 + (jjs-Y0)**2)
+        mask=np.zeros([ny,nx])
+        mask[np.where(irrs < maskradpixels)]=1
+        for i in ii:
+            for j in jj:
+                if (mask[j,i]==1):
+                    tasks.append([j,i])
             
 
     #pbar=tqdm(total=len(tasks))
@@ -558,11 +575,6 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     print("Done whole pool")
 
 
-    #todo = p.map(parspar,tasks)
-    #print("Done whole pool")
-
-    #todo = np.array(todo)
-    #todo = todo[todo!=None]
     for ls in Pooloutput:
         if len(ls)!=6:
             continue
@@ -609,7 +621,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     if StoreModels:
         for iiso in list(range(nisos)):
             unitfactor=unitfactors[iiso]
-            amodel=models[iiso]
+            amodel=models[iiso]/unitfactor
             ahead=heads[iiso]
             rout=pf.PrimaryHDU(amodel)
             rout.header=ahead
