@@ -3,7 +3,6 @@ Package for CO rotational line fitting using uniform slab models.
 S. Casassus & F. Alarcon
 """
 
-import MolData	 # molecular data
 
 from multiprocessing import Pool
 import numpy as np
@@ -24,9 +23,11 @@ from copy import deepcopy
 from tqdm import tqdm
 import re
 
-include_path='/Users/simon/common/python/include/'
+include_path='/home/simon/common/python/include/'
 sys.path.append(include_path)
-import Vtools
+
+import Slab.Line.MolData as MolData	 # molecular data
+import PyVtools.Vtools as Vtools
 
 
 def Tbrightness(I_nu,nu):
@@ -191,25 +192,56 @@ def parspar(n):
 
     T_inits=[]
     vel_peaks=[]
+    nu_peaks=[]
     I_peaks=[]
     datas=[]
+    datamaxs=[]
+    weightss=[]
+    datamaskeds=[]
+    nusmaskeds=[]
+
     for iiso,acubo in enumerate(cubos):
+
+        velocities=velocitiess[iiso]
+        weights=np.ones(velocities.shape)
+        mask=np.ones((len(velocities),), dtype=bool)
+        if BadChannels:
+            ibadchan1 = BadChannels[iiso][0]
+            ibadchan2 = BadChannels[iiso][1]
+            weights[ibadchan1:ibadchan2] = 0.
+
+        weightss.append(weights)
         
         data = acubo[:,j,i]
         datas.append(data)
         nus=nuss[iiso]
-        
-        datamax = data.max()
-        nu0_init= nus[np.argmax(data)] # selected_velocities[signal_a==signal_a.max()]
 
+        mask=(weights > 0.)
+        datamasked=data[mask]
+        datamaskeds.append(datamasked)
+        
+        datamax = datamasked.max()
+        datamaxs.append(datamax)
+        nusmasked=nus[mask]
+        nusmaskeds.append(nusmasked)
+        
+        imax=np.argmax(datamasked)
+        nu0_init= nusmasked[imax] # selected_velocities[signal_a==signal_a.max()]
+        nu_peaks.append(nu0_init)
         aT_init = Tbrightness(datamax,nu0_init)
         
         T_inits.append(aT_init)
 
-        velocities=velocitiess[iiso]
-        vel_peak = velocities[data==data.max()][0]
+        velocitiesmasked=velocities[mask]
+
+        #vel_peak = velocities[data==data.max()][0]
+        vel_peak = velocitiesmasked[imax]
+
         vel_peaks.append(vel_peak)
-        I_peaks.append(data.max())
+        I_peaks.append(datamax)
+
+       
+ 
         
     T_init=T_inits[0] # max(T_inits)
     T_limits = (0.5*T_init,1.5*T_init)
@@ -225,13 +257,22 @@ def parspar(n):
     rmss=[]
     for iiso,acubo in enumerate(cubos):
         data = acubo[:,j,i]
+        velocities=velocitiess[iiso]
+
+        weights=weightss[iiso]
+        mask=(weights > 0.)
+        
+        datamasked=datamaskeds[iiso]
+        velocitiesmasked=velocities[mask]
+
         nus=nuss[iiso]
 
-        datamax = data.max()
-        nu0_init= nus[np.argmax(data)] 
+        #datamax = data.max()
+        datamax = datamaxs[iiso]
+        #nu0_init= nus[np.argmax(data)] 
+        nu0_init=nu_peaks[iiso]
 
-
-        noise = data[(velocities<vel_peak-1.) | (velocities>vel_peak+1.)]
+        noise = datamasked[(velocitiesmasked<vel_peak-1.) | (velocitiesmasked>vel_peak+1.)]
         rms = np.std(noise)
 
         rmss.append(rms)
@@ -256,7 +297,7 @@ def parspar(n):
 
     Sigma_g_init=max(Sigma_g_thins)
 
-    datamin = data.min()
+    #datamin = data.min()
     #Icont_0 = datamin
     #if Icont_0==0:
     #    Icont_0=1e-10
@@ -293,7 +334,7 @@ def parspar(n):
 
         
 
-    f = lambda Temp,vturb,Sigma_g, v0: master_chi2(nuss, v0, Temp, Sigma_g, vturb, datas, rmss)
+    f = lambda Temp,vturb,Sigma_g, v0: master_chi2(nusmaskeds, v0, Temp, Sigma_g, vturb, datamaskeds, rmss)
     m = Minuit(f, Temp=T_init, vturb=vturb_init, Sigma_g=Sigma_g_init, 
                v0=v0_init,
                error_Temp=1.,
@@ -354,28 +395,15 @@ def parspar(n):
 
 
 
+def initMoldata(moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2):
 
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False):
-
-    
-    global h_P, c_light, k_B,  mp, mH2 
-    global cubos
-    global nuss, dnus
-    global velocitiess #, alpha, Icont_0
     global sigma, molecule_masses, B_21s, g_Jlo, g_Jup, E_los, restfreqs
     global levelenergiess, g_Js
     global f_CO, f_abunds
-    global ViewIndividualFits
-    global Fix_vturb
+    global isonames
 
-
-    Fix_vturb=Fix_vturbulence
+    global h_P, c_light, k_B,  mp, mH2
     
-    f_CO=1E-4
-
-    ViewIndividualFits=ViewIndividualSpectra
-    
-
     # constants in cgs units
     h_P = const.h.cgs.value
     c_light = const.c.cgs.value
@@ -383,6 +411,96 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     mp = const.m_p.cgs.value
     meanmolweight=2.17
     mH2= meanmolweight * mp
+
+    #
+    f_CO=1E-4
+
+    MasterMolDatas=[]
+    levelenergiess=[]
+    E_los=[]
+    B_21s=[]
+    restfreqs=[]
+    molecule_masses=[]
+    g_Jss=[] # should all be the same but store for testing 
+
+    f_abunds=[]
+    isonames=[]
+ 
+    for iiso,amoldatafile in enumerate(moldatafiles):
+        MasterMolData = MolData.load_moldata(amoldatafile)
+        MasterMolDatas.append(MasterMolData)
+
+        molname=MasterMolData['name']
+        f_abund=MolData.molecular_fraction(molname)
+        f_abunds.append(f_abund)
+        isonames.append(molname)
+        
+        levelenergies=np.array(MasterMolData['levelenergies'])
+        levelenergiess.append(levelenergies)
+        
+        g_Js = np.array(MasterMolData['g_Js'])
+        g_Jss.append(g_Js)
+
+        levelJs = MasterMolData['levelJs']
+        levelnumber = MasterMolData['levelnumbers']
+    
+        iJ_up=levelJs.index(J_up)
+        iJ_lo=iJ_up-1
+        g_Jup=g_Js[iJ_up]
+        g_Jlo=g_Js[iJ_lo]
+        n_up=levelnumber[iJ_up]
+
+        E_lo=levelenergies[iJ_lo]
+        E_los.append(E_lo)
+    
+        alltransitions=MasterMolData['transitions'].keys()
+        for itransition in alltransitions:
+            thistransition=MasterMolData['transitions'][itransition]
+            if (thistransition['nlevelup'] == n_up):
+                Einstein_A=thistransition['Einstein_A']
+                restfreq=thistransition['restfreq']
+                restfreqs.append(restfreq)
+                Einstein_B21=thistransition['Einstein_B21']
+                B_21=Einstein_B21
+                B_21s.append(B_21)
+                break
+        
+        molecule_mass = MasterMolData['molecularmass']
+        molecule_masses.append(molecule_mass)
+
+
+    
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False):
+
+    
+    
+    global cubos
+    global nuss, dnus
+    global velocitiess #, alpha, Icont_0
+    
+    global ViewIndividualFits
+    global Fix_vturb
+
+    global BadChannels
+
+    BadChannels=MaskChannels
+    
+    Fix_vturb=Fix_vturbulence
+
+    
+    #f_CO=1E-4
+    
+    ViewIndividualFits=ViewIndividualSpectra
+    
+    initMoldata(moldatafiles=moldatafiles,J_up=J_up)
+
+    ## constants in cgs units
+    #h_P = const.h.cgs.value
+    #c_light = const.c.cgs.value
+    #k_B = const.k_B.cgs.value
+    #mp = const.m_p.cgs.value
+    #meanmolweight=2.17
+    #mH2= meanmolweight * mp
 
     cubos=[]
     heads=[]
@@ -459,68 +577,20 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
     #pbar=tqdm(total=len(tasks))
 
-    MasterMolDatas=[]
-    levelenergiess=[]
-    E_los=[]
-    B_21s=[]
-    restfreqs=[]
-    molecule_masses=[]
-    g_Jss=[] # should all be the same but store for testing 
     dnus=[]
     velocitiess=[]
     nuss=[]
 
 
-    f_abunds=[]
-    isonames=[]
  
     for iiso,amoldatafile in enumerate(moldatafiles):
-        MasterMolData = MolData.load_moldata(amoldatafile)
-        MasterMolDatas.append(MasterMolData)
 
-        molname=MasterMolData['name']
-        f_abund=MolData.molecular_fraction(molname)
-        f_abunds.append(f_abund)
-        isonames.append(molname)
-        
-        levelenergies=np.array(MasterMolData['levelenergies'])
-        levelenergiess.append(levelenergies)
-        
-        g_Js = np.array(MasterMolData['g_Js'])
-        g_Jss.append(g_Js)
-
-        levelJs = MasterMolData['levelJs']
-        levelnumber = MasterMolData['levelnumbers']
-    
-        iJ_up=levelJs.index(J_up)
-        iJ_lo=iJ_up-1
-        g_Jup=g_Js[iJ_up]
-        g_Jlo=g_Js[iJ_lo]
-        n_up=levelnumber[iJ_up]
-
-        E_lo=levelenergies[iJ_lo]
-        E_los.append(E_lo)
-    
-        alltransitions=MasterMolData['transitions'].keys()
-        for itransition in alltransitions:
-            thistransition=MasterMolData['transitions'][itransition]
-            if (thistransition['nlevelup'] == n_up):
-                Einstein_A=thistransition['Einstein_A']
-                restfreq=thistransition['restfreq']
-                restfreqs.append(restfreq)
-                Einstein_B21=thistransition['Einstein_B21']
-                B_21=Einstein_B21
-                B_21s.append(B_21)
-                break
-        
-        molecule_mass = MasterMolData['molecularmass']
-        molecule_masses.append(molecule_mass)
+        restfreq=restfreqs[iiso]
 
         if ViewIndividualFits:
             print("restfreq :",restfreq)
             print("Einstein_A :",Einstein_A)
             print("molecule_mass ",molecule_mass)
-
 
 
         print("using header number",iiso)
