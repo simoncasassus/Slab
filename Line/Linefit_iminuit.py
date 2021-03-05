@@ -335,21 +335,33 @@ def parspar(n):
         
 
     f = lambda Temp,vturb,Sigma_g, v0: master_chi2(nusmaskeds, v0, Temp, Sigma_g, vturb, datamaskeds, rmss)
-    m = Minuit(f, Temp=T_init, vturb=vturb_init, Sigma_g=Sigma_g_init, 
-               v0=v0_init,
-               error_Temp=1.,
-               error_Sigma_g=0.0001,
-               error_vturb=100.,
-               error_v0=0.01*1E5, 
-               limit_Temp=T_limits,
-               limit_vturb=(0.0, 1E5),
-               limit_Sigma_g=(0., 1.5*Sigma_g_init),
-               limit_v0=(v0_init-10.*1E5, v0_init+10.*1E5),
-               errordef=1,
-               fix_vturb = Fix_vturb,
-               #fix_Temp = True,
-               #fix_nu0 = True,
-    )
+    m = Minuit(f, Temp=T_init, vturb=vturb_init, Sigma_g=Sigma_g_init, v0=v0_init)
+    #error_Temp=1.,
+    #error_Sigma_g=0.0001,
+    #error_vturb=100.,
+    #error_v0=0.01*1E5, 
+    #limit_Temp=T_limits,
+    #limit_vturb=(0.0, 1E5),
+    #limit_Sigma_g=(0., 1.5*Sigma_g_init),
+    #limit_v0=(v0_init-10.*1E5, v0_init+10.*1E5),
+    #errordef=1,
+    #fix_vturb = Fix_vturb,
+    ##fix_Temp = True,
+    ##fix_nu0 = True,
+     
+    m.errors['Temp']=1.
+    m.errors['Sigma_g']=0.0001
+    m.errors['vturb']=100.
+    m.errors['v0']=0.01*1E5
+
+    m.limits['Temp']=T_limits
+    m.limits['vturb']=(0.0, 1E5)
+    m.limits['Sigma_g']=(0., 1.5*Sigma_g_init)
+    m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
+    m.fixed['vturb']=Fix_vturb
+    m.errordef=Minuit.LEAST_SQUARES
+    
+    
     m.migrad()
     errmod = f(m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0'])
     fit = [m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0']];
