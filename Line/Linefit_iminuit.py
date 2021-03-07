@@ -19,6 +19,7 @@ import astropy.constants as const
 #from astropy.modeling.blackbody import blackbody_nu
 #from astropy.modeling.models import BlackBody
 from copy import deepcopy
+from pprint import pprint
 
 from tqdm import tqdm
 import re
@@ -168,11 +169,33 @@ def intensity_err(nu, nu0, Tk,Sigma_g, vturb, datos, rms,iiso):
     returns chi2 for model vs data
     """
     model ,tau0, taus = intensity(nu, Tk, nu0, Sigma_g, vturb,iiso)
+
+
+
+    ViewOptim=False
+    if ViewIndividualFits and ViewOptim:
+        #pprint( list(zip(nu,datos,model) ))
+        print("nu0",nu0,"Tk",Tk,"Sigma_g",Sigma_g,"vturb",vturb)
+        specobs=np.zeros((len(datos),2))
+        specmod=np.zeros((len(datos),2))
+        specobs[:,0]=nu
+        specobs[:,1]=datos
+        specmod[:,0]=nu
+        specmod[:,1]=model
+        
+        Vtools.Spec([specobs,specmod])
+
+
+
+
+    
     aux = (datos-model)**2
     chi2 = np.sum(aux)/rms**2
     return chi2
 
 def master_chi2(nuss, v0, Temp, Sigma_g, vturb, datas, rmss):
+
+
 
     chi2=0.
     for iiso,adata in enumerate(datas):
@@ -180,6 +203,9 @@ def master_chi2(nuss, v0, Temp, Sigma_g, vturb, datas, rmss):
         rms=rmss[iiso]
         restfreq=restfreqs[iiso]
         nu0=restfreq-(v0/c_light)*restfreq
+
+
+        #print("v0, Temp, Sigma_g, vturb",v0, Temp, Sigma_g, vturb)
         chi2+=intensity_err(nus, nu0, Temp, Sigma_g, vturb, adata, rms,iiso)
 
     return chi2
@@ -208,7 +234,11 @@ def parspar(n):
         if BadChannels:
             ibadchan1 = BadChannels[iiso][0]
             ibadchan2 = BadChannels[iiso][1]
-            weights[ibadchan1:ibadchan2] = 0.
+            if ibadchan2 == -1:
+                weights[ibadchan1:] = 0.
+            else:
+                ibadchan2+=1
+                weights[ibadchan1:ibadchan2] = 0.
 
         weightss.append(weights)
         
@@ -223,6 +253,9 @@ def parspar(n):
         datamax = datamasked.max()
         datamaxs.append(datamax)
         nusmasked=nus[mask]
+
+
+        
         nusmaskeds.append(nusmasked)
         
         imax=np.argmax(datamasked)
@@ -244,8 +277,17 @@ def parspar(n):
  
         
     T_init=T_inits[0] # max(T_inits)
-    T_limits = (0.5*T_init,1.5*T_init)
+    #T_limits = (0.5*T_init,1.5*T_init)
+    #T_limits = (3.,1.5*T_init)
 
+    if (T_init > T_min):
+        T_limits = (T_min,2.*T_init)
+    else:
+        T_init=T_min
+        T_limits = (T_min,T_min)
+
+    if Fix_Temp:
+        T_init=T_min
 
     vel_peak=vel_peaks[0]
     v0_init=vel_peak * 1E3 * 1E2 # init centroid velocity in CGS
@@ -295,7 +337,7 @@ def parspar(n):
         if ViewIndividualFits:
             print("iiso ",iiso,"typical int ", typicalint,"Sigma_g_thin",Sigma_g_thin, "f_CO", f_CO, "f_abund", f_abund)
 
-    Sigma_g_init=max(Sigma_g_thins)
+    Sigma_g_init=max(Sigma_g_thins)*init_sigmag_modulation
 
     #datamin = data.min()
     #Icont_0 = datamin
@@ -332,33 +374,58 @@ def parspar(n):
 
 
 
-        
+    if ViewIndividualFits:
+        print("Temp=",T_init," vturb=",vturb_init," Sigma_g=",Sigma_g_init," v0=",v0_init)
 
     f = lambda Temp,vturb,Sigma_g, v0: master_chi2(nusmaskeds, v0, Temp, Sigma_g, vturb, datamaskeds, rmss)
     m = Minuit(f, Temp=T_init, vturb=vturb_init, Sigma_g=Sigma_g_init, v0=v0_init)
-    #error_Temp=1.,
-    #error_Sigma_g=0.0001,
-    #error_vturb=100.,
-    #error_v0=0.01*1E5, 
-    #limit_Temp=T_limits,
-    #limit_vturb=(0.0, 1E5),
-    #limit_Sigma_g=(0., 1.5*Sigma_g_init),
-    #limit_v0=(v0_init-10.*1E5, v0_init+10.*1E5),
-    #errordef=1,
-    #fix_vturb = Fix_vturb,
-    ##fix_Temp = True,
-    ##fix_nu0 = True,
-     
+
+
+    ##error_Temp=1.,
+    ##error_Sigma_g=0.0001,
+    ##error_vturb=100.,
+    ##error_v0=0.01*1E5, 
+    ##limit_Temp=T_limits,
+    ##limit_vturb=(0.0, 1E5),
+    ##limit_Sigma_g=(0., 1.5*Sigma_g_init),
+    ##limit_v0=(v0_init-10.*1E5, v0_init+10.*1E5),
+    ##errordef=1,
+    ##fix_vturb = Fix_vturb,
+    ###fix_Temp = True,
+    ###fix_nu0 = True,
+    # 
     m.errors['Temp']=1.
-    m.errors['Sigma_g']=0.0001
+    m.errors['Sigma_g']=0.00001
     m.errors['vturb']=100.
     m.errors['v0']=0.01*1E5
+    #
+    #
+    ##m.values['Temp']=T_init
+    ##m.values['Sigma_g']=Sigma_g_init
+    ##m.values['vturb']=vturb_init
+    ##m.values['v0']=v0_init
+    #
 
-    m.limits['Temp']=T_limits
-    m.limits['vturb']=(0.0, 1E5)
+    if Fix_Temp:
+        T_limits = (T_min,T_min)
+        m.fixed['Temp']=True
+
+    else:
+        m.limits['Temp']=T_limits
+
+        
     m.limits['Sigma_g']=(0., 1.5*Sigma_g_init)
-    m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
-    m.fixed['vturb']=Fix_vturb
+    #m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
+    #m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
+    m.limits['v0']=(v0_init-1.*1E5, v0_init+1.*1E5)
+
+    if Fix_vturb:
+        m.fixed['vturb']=True
+        # sys.exit('FIXED VTURB')
+    else:
+        m.limits['vturb']=(0.0, 2E4)
+        #m.limits['vturb']=(0.0, 4E4)
+
     m.errordef=Minuit.LEAST_SQUARES
     
     
@@ -383,9 +450,13 @@ def parspar(n):
     errmodelij = errmod
 
     if ViewIndividualFits:
+        params=m.params
         print("Best fit:")
-        for aparam in m.values.keys():
-            print(aparam,m.values[aparam])
+        #for aparam in m.values.keys():
+        for iparam,aparam in enumerate(params):
+            aparam_name=aparam.name
+            aparam_value=aparam.value
+            print(aparam_name,aparam_value) 
         
         for iiso,restfeq in enumerate(restfreqs):
             nus=nuss[iiso]
@@ -482,7 +553,7 @@ def initMoldata(moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2):
 
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False):
 
     
     
@@ -492,13 +563,18 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     
     global ViewIndividualFits
     global Fix_vturb
+    global Fix_Temp
 
     global BadChannels
-
+    global init_sigmag_modulation
+    global T_min
+    T_min=T_minimum
+    init_sigmag_modulation=Init_Sigma_g_modul
+    
     BadChannels=MaskChannels
     
     Fix_vturb=Fix_vturbulence
-
+    Fix_Temp=Fix_temperature
     
     #f_CO=1E-4
     
@@ -599,10 +675,10 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
         restfreq=restfreqs[iiso]
 
-        if ViewIndividualFits:
-            print("restfreq :",restfreq)
-            print("Einstein_A :",Einstein_A)
-            print("molecule_mass ",molecule_mass)
+        #if ViewIndividualFits:
+        #    # print("restfreq :",restfreq)
+        #    # print("Einstein_A :",Einstein_A)
+        #    print("molecule_mass ",molecule_mass)
 
 
         print("using header number",iiso)
