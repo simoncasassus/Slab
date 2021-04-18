@@ -1,6 +1,6 @@
 """
 Package for CO rotational line fitting using uniform slab models. 
-S. Casassus & F. Alarcon
+S. Casassus & F. Alarcon & C. Flores
 """
 
 
@@ -423,7 +423,8 @@ def parspar(n):
         m.fixed['vturb']=True
         # sys.exit('FIXED VTURB')
     else:
-        m.limits['vturb']=(0.0, 2E4)
+        #m.limits['vturb']=(0.0, 2E4)
+        m.limits['vturb']=(0.0, 1E5)
         #m.limits['vturb']=(0.0, 4E4)
 
     m.errordef=Minuit.LEAST_SQUARES
