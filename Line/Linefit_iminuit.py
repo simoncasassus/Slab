@@ -380,7 +380,8 @@ def parspar(n):
     f = lambda Temp,vturb,Sigma_g, v0: master_chi2(nusmaskeds, v0, Temp, Sigma_g, vturb, datamaskeds, rmss)
     m = Minuit(f, Temp=T_init, vturb=vturb_init, Sigma_g=Sigma_g_init, v0=v0_init)
 
-
+    m.tol=1e-4
+    
     ##error_Temp=1.,
     ##error_Sigma_g=0.0001,
     ##error_vturb=100.,
@@ -554,7 +555,7 @@ def initMoldata(moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2):
 
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True):
 
     
     
@@ -607,6 +608,15 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
             omegabeam = (np.pi/(4.*np.log(2.))) * (np.pi/180.)**2 * (head['BMAJ']*head['BMIN'])
             unitfactor = 1E-26 * 1E7 * 1E-4 / omegabeam
             cubo *= unitfactor
+
+            Debug=True
+            if Debug:
+                rout=pf.PrimaryHDU(cubo)
+                rout.header=head
+                ainputcubefile_CGS=re.sub('.fits','_CGS.fits',ainputcubefile)
+                rout.writeto(ainputcubefile_CGS, overwrite=True)
+
+            
         elif re.search(r"Jy.*pix",InputDataUnits,re.IGNORECASE):
             print("converting input data units from Jy/pix to CGS/sr, using pixel", head['CDELT2'])
             omegapix = (np.pi/180.)**2 * (head['CDELT2']**2)
@@ -626,7 +636,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
     if (not re.search(r"\/$",outputdir)):
         outputdir+='/'
-        print("added trailing back slack to outputdir")
+        print("added trailing back slash to outputdir")
 
     #os.system("rm -rf "+outputdir)
     os.system("mkdir "+outputdir)
@@ -776,7 +786,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         rout.header=headout
         rout.writeto(outputdir+apunchout['outfile'], overwrite=True)
 
-    StoreModels=True
+    
     if StoreModels:
         for iiso in list(range(nisos)):
             unitfactor=unitfactors[iiso]
