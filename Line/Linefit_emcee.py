@@ -24,6 +24,15 @@ from pprint import pprint
 from tqdm import tqdm
 import re
 
+import matplotlib.pyplot as plt
+
+if not sys.warnoptions:
+    import os, warnings
+    #warnings.simplefilter("default") # Change the filter in this process
+    warnings.simplefilter("ignore") # Change the filter in this process
+    #os.environ["PYTHONWARNINGS"] = "default" # Also affect subprocesses
+    os.environ["PYTHONWARNINGS"] = "ignore" # Also affect subprocesses
+
 include_path='/home/simon/common/python/include/'
 sys.path.append(include_path)
 
@@ -333,6 +342,7 @@ def parspar(n):
         if ViewIndividualFits:
             print("iiso ",iiso,"typical int ", typicalint,"Sigma_g_thin",Sigma_g_thin, "f_CO", f_CO, "f_abund", f_abund)
 
+    max_Sigma_g_thins=max(Sigma_g_thins)
     Sigma_g_init=max(Sigma_g_thins)*init_sigmag_modulation
 
     #datamin = data.min()
@@ -411,7 +421,7 @@ def parspar(n):
         m.limits['Temp']=T_limits
 
         
-    m.limits['Sigma_g']=(0., 1.5*Sigma_g_init)
+    m.limits['Sigma_g']=(0., 10.*max_Sigma_g_thins)
     #m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
     #m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
     m.limits['v0']=(v0_init-1.*1E5, v0_init+1.*1E5)
@@ -428,9 +438,43 @@ def parspar(n):
     
     
     m.migrad()
-    errmod = f(m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0'])
-    fit = [m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0']];
+    #errmod = f(m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0'])
+    fit = [m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0']]
 
+
+    
+    if DoMCMC:
+        names= ['Temp', 'vturb','Sigma_g','v0']
+        bnds=[]
+        for aname in names:
+            if ViewIndividualFits:
+                print("adding limits: ",m.limits[aname])
+            bnds.append(m.limits[aname])
+            
+        result_mcmc=exec_emcee(fit,names,bnds,Nit=400,nwalkers=30,burn_in=50,n_cores=1,Debug=False,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
+
+
+        
+        for iname,aname in enumerate(names):
+            aresult_mcmc=result_mcmc[0][iname]
+            if ViewIndividualFits:
+                print(aname," ML :",fit[iname]," ->-> ",aresult_mcmc[0])
+            fit[iname]=aresult_mcmc[0]
+            m.values[aname]=aresult_mcmc[0]
+            
+
+        DoMigradTwice=True
+        if DoMigradTwice:
+            if ViewIndividualFits:
+                print("Running Migrad again with emcee init")
+            
+            m.migrad()
+            fit = [m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0']]
+
+            
+    errmod = f(m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0'])
+
+            
     isomodelsij=[]
     isotaus0ij=[]
     
@@ -550,8 +594,204 @@ def initMoldata(moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2):
         molecule_masses.append(molecule_mass)
 
 
+
+def lnlike(theta,nusmaskeds,datamaskeds,rmss):
+
+    nvar=len(theta)
+    names= ['Temp', 'vturb','Sigma_g','v0']
+    v0=theta[3]
+    Temp=theta[0]
+    vturb=theta[1]
+    Sigma_g=theta[2]
+
+    return -0.5*master_chi2(nusmaskeds, v0, Temp, Sigma_g, vturb, datamaskeds, rmss)
+
+
+def lnprior(theta,bnds):
+    inside=1
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True):
+    for iparam in list(range(len(theta))):
+        if (bnds[iparam][0] < theta[iparam] < bnds[iparam][1]):
+            inside *=1
+        else:
+            inside *=0
+
+    if (inside): 
+        return 0.0
+    else:
+        return -np.inf
+
+def lnprob(theta,bnds,nusmaskeds,datamaskeds,rmss):
+    lp = lnprior(theta,bnds)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp + lnlike(theta,nusmaskeds,datamaskeds,rmss)
+
+
+def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=True,n_cores=1,workdir='',lnprobargs=[]):
+    
+
+    ranges = list(map( (lambda x: x[1]-x[0]),bnds))
+    allowed_ranges=np.array(ranges)
+    if Debug:
+        print("allowed_ranges ",allowed_ranges)
+    nvar = len(names)
+    
+    if Debug:
+        print( "mcmc with nvar=",nvar)
+    
+    ndim =nvar
+    pos=[]
+    for i in list(range(nwalkers)):
+        if (np.any(allowed_ranges < 0.)):
+            sys.exit("wrong order of bounds in domains")
+        #awalkerinit=result_ml+(1e-1*np.random.randn(ndim)*allowed_ranges)
+        awalkerinit=result_ml+(np.random.randn(ndim)*allowed_ranges)
+        pos.append(awalkerinit)
+
+    if Debug:
+        print("init for emcee :", result_ml)
+
+    import emcee
+
+    #RunMCMC=True
+    #if RunMCMC:
+    if Debug:
+        print( bnds)
+        print( "funcs_Optim_DCone:  calling  emcee  with Nit",Nit," nmwalkers",nwalkers," n_cores",n_cores)
+
+    #from multiprocessing import Pool
+    #with Pool(n_cores) as pool:
+
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=lnprobargs)
+
+    #start = time.time()
+    sampler.run_mcmc(pos, Nit, progress=False)
+    #end = time.time()
+    #multi_time = end - start
+    #print("Multiprocessing took {0:.1f} seconds".format(multi_time))
+
+    if Debug:
+        print( "************ finish ***************")
+    samples = sampler.chain  # chain= array(nwalkers,nit,ndim)
+    lnprobs = sampler.lnprobability
+
+    if Debug:
+        ######### save samples
+        np.save(workdir+'samples.dat',samples)
+        np.save(workdir+'lnprobs.dat',lnprobs)
+        # end time
+        #t_f = time.strftime("%y-%m-%d %h:%m:%s", time.gmtime())
+        #print( "t_i = "+str(t_i))
+        #print( "t_f = "+str(t_f))
+
+        #print(("mean acceptance fraction: {0:.3f} "  .format(np.mean(sampler.acceptance_fraction))))
+        #f=open(workdir+'acceptance.dat', 'w')
+        #f.write(str(t_i)+' \n')
+        #f.write(str(t_f)+' \n')
+        #f.write("Nit = "+str(Nit)+' \n')
+        #f.write("nwalkers = "+str(nwalkers)+' \n')
+        #f.write("ndim = "+str(ndim)+' \n')
+        #f.write("mean acceptance fraction: {0:.3f}"  .format(np.mean(sampler.acceptance_fraction)) +' \n')
+        #f.close() 
+
+    #autocorr=sampler.get_autocorr_time(c=1, low=1)
+    #print( "autocorr\n",autocorr  )
+        
+    #else:
+    #    samples=np.load(workdir+'samples.dat.npy')
+    #    lnprobs=np.load(workdir+'lnprobs.dat.npy')
+        
+
+
+
+        
+    chains=np.zeros(((Nit-burn_in)*nwalkers,ndim))
+    chains2=np.zeros((Nit-burn_in, nwalkers,ndim))
+    lnpchain=np.zeros(((Nit-burn_in)*nwalkers))
+    lnpchain2=np.zeros(((Nit-burn_in), nwalkers))
+    
+
+
+    chains[:,:]=samples[:,burn_in:,:].reshape((nwalkers*(Nit-burn_in), ndim),order='c')
+    lnpchain[:]=lnprobs[:,burn_in:].reshape((nwalkers*(Nit-burn_in)),order='c')
+    
+    ibestparams=np.argmax(lnpchain)
+    bestparams=chains[ibestparams,:]
+
+    if Debug:
+        ######### save bestparams
+        np.save(workdir+'bestparams.dat',bestparams)
+    
+
+    for j in list(range(nwalkers)):
+        chains2[:,j,:]=samples[j,burn_in:,:].reshape((Nit-burn_in, ndim),order='c')
+        lnpchain2[:,j]=lnprobs[j,burn_in:].reshape(((Nit-burn_in)),order='c')
+
+    if Debug:
+        fig=plt.figure(figsize=(10,8))
+        par_labels=names
+        ax_lnprob=fig.add_subplot(ndim+1,1,ndim+1)
+        for ip in list(range(ndim)):
+            ax_chain=fig.add_subplot(ndim+1,1,ip+1)
+            for i in list( range(nwalkers)):
+                ax_chain.plot(chains2[:,i,ip],alpha=0.1)
+                ax_chain.set_ylabel(par_labels[ip])
+
+                ax_lnprob.plot(lnpchain2[:,i],alpha=0.1)
+                ax_lnprob.set_ylabel('ln(p)')
+
+        #plt.show()
+        plt.savefig(workdir+'chains.png', bbox_inches='tight')
+        plt.close(fig)
+
+
+
+    #samples = sampler.chain[:, burn_in:, :].reshape((-1, ndim))
+
+    
+    mcmc_results = list(map(lambda v: [v[1], v[2]-v[1], v[1]-v[0]],
+                             zip(*np.percentile(chains, [16, 50, 84],
+                                                axis=0))))
+
+    if Debug:
+        np.save(workdir+'mcmc_results.dat',mcmc_results)
+
+        mcmc_results_0 = np.zeros(nvar)
+
+        print( "param     distrib     max ")
+        for iparam in list(range(nvar)):
+            print( names[iparam],mcmc_results[iparam],bestparams[iparam])
+            mcmc_results_0[iparam]= mcmc_results[iparam][0]
+
+
+        #print( "mcmc median values:")
+        #model_median =  np.array(modelfunk(mcmc_results_0, m))
+
+
+
+        import corner
+
+        fig=corner.corner(chains,
+                          labels=names,
+                          quantiles=[0.16, 0.5,0.84],
+                          bins=20, truths=bestparams,
+                          levels=[0.68, 0.95, 0.997],
+                          show_titles=True,
+                          title_fmt=".3f",
+                          title_kwards={"fontsize": 10}) #, smooth=1.0
+
+
+
+
+        fig.savefig(workdir+'cornerplot.png')
+
+        print( "finished MCMC")
+        
+    return [mcmc_results]
+
+    
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,RunMCMC=False):
 
     
     
@@ -566,6 +806,13 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global BadChannels
     global init_sigmag_modulation
     global T_min
+
+    global DoMCMC
+    DoMCMC=RunMCMC
+    
+    global workdir
+    workdir=outputdir
+    
     T_min=T_minimum
     init_sigmag_modulation=Init_Sigma_g_modul
     
@@ -605,8 +852,8 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
             unitfactor = 1E-26 * 1E7 * 1E-4 / omegabeam
             cubo *= unitfactor
 
-            Debug=True
-            if Debug:
+            storeCGS=False
+            if storeCGS:
                 rout=pf.PrimaryHDU(cubo)
                 rout.header=head
                 ainputcubefile_CGS=re.sub('.fits','_CGS.fits',ainputcubefile)
