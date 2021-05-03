@@ -447,11 +447,13 @@ def parspar(n):
         names= ['Temp', 'vturb','Sigma_g','v0']
         bnds=[]
         for aname in names:
+            Debug=False
             if ViewIndividualFits:
                 print("adding limits: ",m.limits[aname])
+                Debug=True
             bnds.append(m.limits[aname])
             
-        result_mcmc=exec_emcee(fit,names,bnds,Nit=400,nwalkers=30,burn_in=50,n_cores=1,Debug=False,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
+        result_mcmc=exec_emcee(fit,names,bnds,Nit=200,nwalkers=30,burn_in=50,n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
 
 
         
@@ -463,7 +465,7 @@ def parspar(n):
             m.values[aname]=aresult_mcmc[0]
             
 
-        DoMigradTwice=True
+        DoMigradTwice=False
         if DoMigradTwice:
             if ViewIndividualFits:
                 print("Running Migrad again with emcee init")
@@ -514,6 +516,8 @@ def parspar(n):
         
     #return [j,i,fit, model[j,i], tau0[j,i]]
     passout=[j,i,fit, errmodelij, isomodelsij, isotaus0ij]
+    if DoMCMC:
+        passout.append(result_mcmc)
     #pbar.update(ncores)
     return passout
 
@@ -598,7 +602,7 @@ def initMoldata(moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2):
 def lnlike(theta,nusmaskeds,datamaskeds,rmss):
 
     nvar=len(theta)
-    names= ['Temp', 'vturb','Sigma_g','v0']
+    #names= ['Temp', 'vturb','Sigma_g','v0']
     v0=theta[3]
     Temp=theta[0]
     vturb=theta[1]
@@ -628,7 +632,7 @@ def lnprob(theta,bnds,nusmaskeds,datamaskeds,rmss):
     return lp + lnlike(theta,nusmaskeds,datamaskeds,rmss)
 
 
-def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=True,n_cores=1,workdir='',lnprobargs=[]):
+def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n_cores=1,workdir='',lnprobargs=[]):
     
 
     ranges = list(map( (lambda x: x[1]-x[0]),bnds))
@@ -645,8 +649,8 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=True,n_
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        #awalkerinit=result_ml+(1e-1*np.random.randn(ndim)*allowed_ranges)
-        awalkerinit=result_ml+(np.random.randn(ndim)*allowed_ranges)
+        awalkerinit=result_ml+(1e-1*np.random.randn(ndim)*allowed_ranges)
+        #awalkerinit=result_ml+(np.random.randn(ndim)*allowed_ranges)
         pos.append(awalkerinit)
 
     if Debug:
@@ -666,7 +670,10 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=True,n_
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=lnprobargs)
 
     #start = time.time()
-    sampler.run_mcmc(pos, Nit, progress=False)
+    ProgressBar=False
+    if ViewIndividualFits:
+        ProgressBar=True
+    sampler.run_mcmc(pos, Nit, progress=ProgressBar)
     #end = time.time()
     #multi_time = end - start
     #print("Multiprocessing took {0:.1f} seconds".format(multi_time))
@@ -959,6 +966,21 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     errmodel = np.zeros((ndim,ndim))
     dust = np.zeros((ndim,ndim,cubo.shape[0]))
 
+    errTemperature = np.zeros((ndim,ndim))
+    errSigma_g_im = np.zeros((ndim,ndim))
+    errTurbvel = np.zeros((ndim,ndim))
+
+    if DoMCMC:
+        errupTemperature = np.zeros((ndim,ndim))
+        errupSigma_g_im = np.zeros((ndim,ndim))
+        errupTurbvel = np.zeros((ndim,ndim))
+        errupvelo_centroid = np.zeros((ndim,ndim))
+        errloTemperature = np.zeros((ndim,ndim))
+        errloSigma_g_im = np.zeros((ndim,ndim))
+        errloTurbvel = np.zeros((ndim,ndim))
+        errlovelo_centroid = np.zeros((ndim,ndim))
+        
+    
     nisos=len(inputcubefiles)
     
     models = []
@@ -988,7 +1010,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
 
     for ls in Pooloutput:
-        if len(ls)!=6:
+        if len(ls)<=1:
             continue
         j = ls[0]
         i = ls[1]
@@ -999,16 +1021,40 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         velo_centroid[j,i]= fit[3]*1E-5
 
                      
-        rettau0s  = ls[-1]
-        retmodels = ls[-2]
+        rettau0s  = ls[5]
+        retmodels = ls[4]
         for iiso in list(range(nisos)):
             models[iiso][:,j,i]=retmodels[iiso]
             isotau0s[iiso][j,i]=rettau0s[iiso]
                   
-        errmodel[j,i] = ls[-3]
+        errmodel[j,i] = ls[3]
 
 
-
+        if DoMCMC:
+            result_mcmc=ls[-1][0]
+            #names= ['Temp', 'vturb','Sigma_g','v0']
+            errupTemp=result_mcmc[0][1]
+            errloTemp=result_mcmc[0][2]
+            errupvturb=result_mcmc[1][1]
+            errlovturb=result_mcmc[1][2]
+            errupSigma_g=result_mcmc[2][1]
+            errloSigma_g=result_mcmc[2][2]
+            errupv0=result_mcmc[3][1]
+            errlov0=result_mcmc[3][2]
+            
+            errupTemperature[j,i] = errupTemp
+            errupSigma_g_im[j,i] = errupSigma_g
+            errupTurbvel[j,i] = errupvturb
+            errupvelo_centroid[j,i]= errupv0*1E-5
+            errloTemperature[j,i] = errloTemp
+            errloSigma_g_im[j,i] = errloSigma_g
+            errloTurbvel[j,i] = errlovturb
+            errlovelo_centroid[j,i]= errlov0*1E-5
+            
+            errTemperature[j,i] = (errupTemp+errloTemp)/2.
+            errSigma_g_im[j,i] = (errupSigma_g+errloSigma_g)/2.
+            errTurbvel[j,i] = (errupvturb+errlovturb)/2.
+            
 
     punchout=[]
     punchout.append({'data':Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'Sigma_g.fits'}) 
@@ -1017,7 +1063,25 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     for iiso in list(range(nisos)):
         punchout.append({'data':isotau0s[iiso],'BUNIT':'N/A','BTYPE':'OpticalDepth','outfile':'tau0_'+isonames[iiso]+'.fits'}) 
 
-    punchout.append({'data':velo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'velocentroid.fits'}) 
+    punchout.append({'data':velo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'velocentroid.fits'})
+
+    punchout.append({'data':errTurbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errvturb.fits'}) 
+    punchout.append({'data':errTemperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'errtemperature.fits'})
+    punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
+    punchout.append({'data':errSigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errSigma_g.fits'}) 
+
+
+    if DoMCMC:
+        punchout.append({'data':errupTurbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errupvturb.fits'}) 
+        punchout.append({'data':errloTurbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errlovturb.fits'}) 
+        punchout.append({'data':errupTemperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'erruptemperature.fits'}) 
+        punchout.append({'data':errloTemperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'errlotemperature.fits'}) 
+        punchout.append({'data':errupSigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errupSigma_g.fits'}) 
+        punchout.append({'data':errloSigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errloSigma_g.fits'}) 
+        punchout.append({'data':errupvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errupvelocentroid.fits'}) 
+        punchout.append({'data':errlovelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errlovelocentroid.fits'})
+
+    
     punchout.append({'data':errmodel,'BUNIT':'erg/s/cm2/Hz/sr','BTYPE':'Intensity','outfile':'fiterror.fits'}) 
     
     for apunchout in punchout:
