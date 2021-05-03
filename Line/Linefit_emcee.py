@@ -969,6 +969,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     errTemperature = np.zeros((ndim,ndim))
     errSigma_g_im = np.zeros((ndim,ndim))
     errTurbvel = np.zeros((ndim,ndim))
+    errvelo_centroid = np.zeros((ndim,ndim))
 
     if DoMCMC:
         errupTemperature = np.zeros((ndim,ndim))
@@ -1054,6 +1055,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
             errTemperature[j,i] = (errupTemp+errloTemp)/2.
             errSigma_g_im[j,i] = (errupSigma_g+errloSigma_g)/2.
             errTurbvel[j,i] = (errupvturb+errlovturb)/2.
+            errvelo_centroid[j,i]= ((errupv0+errlov0)/2.)*1E-5
             
 
     punchout=[]
