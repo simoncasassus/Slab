@@ -286,11 +286,11 @@ def parspar(n):
     #T_limits = (3.,1.5*T_init)
 
     if (T_init > T_min):
-        T_limits = (T_min,2.*T_init)
+        T_limits = (T_min,10.*T_init)
     else:
         T_init=T_min
-        T_limits = (T_min,T_min)
-
+        T_limits = (T_min,10.*T_min)
+        
     if Fix_Temp:
         T_init=T_min
 
@@ -420,18 +420,19 @@ def parspar(n):
     else:
         m.limits['Temp']=T_limits
 
+
         
     m.limits['Sigma_g']=(0., 10.*max_Sigma_g_thins)
     #m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
     #m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
-    m.limits['v0']=(v0_init-1.*1E5, v0_init+1.*1E5)
+    m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
 
     if Fix_vturb:
         m.fixed['vturb']=True
         # sys.exit('FIXED VTURB')
     else:
         #m.limits['vturb']=(0.0, 2E4)
-        m.limits['vturb']=(0.0, 1E5)
+        m.limits['vturb']=(0.0, 5E5)
         #m.limits['vturb']=(0.0, 4E4)
 
     m.errordef=Minuit.LEAST_SQUARES
@@ -452,8 +453,8 @@ def parspar(n):
                 print("adding limits: ",m.limits[aname])
                 Debug=True
             bnds.append(m.limits[aname])
-            
-        result_mcmc=exec_emcee(fit,names,bnds,Nit=200,nwalkers=30,burn_in=50,n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
+
+        result_mcmc=exec_emcee(fit,names,bnds,Nit=400,nwalkers=30,burn_in=100,n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
 
 
         
@@ -638,6 +639,7 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     ranges = list(map( (lambda x: x[1]-x[0]),bnds))
     allowed_ranges=np.array(ranges)
     if Debug:
+        print("bnds ",bnds)
         print("allowed_ranges ",allowed_ranges)
     nvar = len(names)
     
@@ -649,20 +651,21 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        awalkerinit=result_ml+(1e-1*np.random.randn(ndim)*allowed_ranges)
+        awalkerinit=result_ml+(1e-2*np.random.randn(ndim)*allowed_ranges)
         #awalkerinit=result_ml+(np.random.randn(ndim)*allowed_ranges)
         pos.append(awalkerinit)
 
     if Debug:
         print("init for emcee :", result_ml)
-
+        #print("pos:",pos)
+        
     import emcee
 
     #RunMCMC=True
     #if RunMCMC:
     if Debug:
         print( bnds)
-        print( "funcs_Optim_DCone:  calling  emcee  with Nit",Nit," nmwalkers",nwalkers," n_cores",n_cores)
+        print( "Linefit_emcee:  calling  emcee  with Nit",Nit," nmwalkers",nwalkers," n_cores",n_cores)
 
     #from multiprocessing import Pool
     #with Pool(n_cores) as pool:
