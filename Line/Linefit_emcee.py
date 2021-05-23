@@ -422,7 +422,7 @@ def parspar(n):
 
 
         
-    m.limits['Sigma_g']=(0., 10.*max_Sigma_g_thins)
+    m.limits['Sigma_g']=(0., 100.*max_Sigma_g_thins)
     #m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
     #m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
     m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
@@ -454,7 +454,7 @@ def parspar(n):
                 Debug=True
             bnds.append(m.limits[aname])
 
-        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=100,n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
+        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(NitMCMC/2),n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
 
 
         
@@ -651,7 +651,15 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        awalkerinit=result_ml+(1e-2*np.random.randn(ndim)*allowed_ranges)
+        awalkerinit=result_ml+(1e-3*np.random.randn(ndim)*allowed_ranges)
+        for j in list(range(ndim)):
+            lowerlimit=bnds[j][0]
+            upperlimit=bnds[j][1]
+            if (awalkerinit[j]<lowerlimit):
+                awalkerinit[j]=lowerlimit
+            if (awalkerinit[j]>upperlimit):
+                awalkerinit[j]=upperlimit
+            
         #awalkerinit=result_ml+(np.random.randn(ndim)*allowed_ranges)
         pos.append(awalkerinit)
 
