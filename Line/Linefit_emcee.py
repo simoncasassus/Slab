@@ -906,7 +906,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
 
     maskradpixels = int(maxradius / pixscl)
-    print("maskradpixels ",maskradpixels)
+    print("maxradius ",maxradius," pixscl ", pixscl, "maskradpixels ",maskradpixels)
     nx=head['NAXIS1']
     ny=head['NAXIS2']
     ii=np.arange(0,nx)
