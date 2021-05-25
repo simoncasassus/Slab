@@ -422,7 +422,7 @@ def parspar(n):
 
 
         
-    m.limits['Sigma_g']=(0., 100.*max_Sigma_g_thins)
+    m.limits['Sigma_g']=(0., 1000.*max_Sigma_g_thins)
     #m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
     #m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
     m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
@@ -454,7 +454,7 @@ def parspar(n):
                 Debug=True
             bnds.append(m.limits[aname])
 
-        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(NitMCMC/2),n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
+        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(3.*NitMCMC/4),n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
 
 
         
@@ -1022,7 +1022,9 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
     print("Done whole pool")
 
-
+    if ViewIndividualFits:
+        return
+        
     for ls in Pooloutput:
         if len(ls)<=1:
             continue
