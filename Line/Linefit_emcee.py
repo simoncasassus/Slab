@@ -332,8 +332,8 @@ def parspar(n):
         Sigma_g_tauones.append(Sigma_g_tauone)
         
         typicalint=datamax
-        if (datamax < (3. *rms)):
-            typicalint = 3.*rms
+        if (datamax < (3. *rms)): 
+           typicalint = 3.*rms
 
             
         Sigma_g_thin = typicalint/ (bbody(T_init,nu0_init)*kappa_L*f_CO*f_abund*phi(T_init,restfreq,restfreq,vturb_init,molecule_mass))
@@ -343,7 +343,12 @@ def parspar(n):
             print("iiso ",iiso,"typical int ", typicalint,"Sigma_g_thin",Sigma_g_thin, "f_CO", f_CO, "f_abund", f_abund)
 
     max_Sigma_g_thins=max(Sigma_g_thins)
-    Sigma_g_init=max(Sigma_g_thins)*init_sigmag_modulation
+    min_Sigma_g_thins=min(Sigma_g_thins)
+    max_Sigma_g_tauones=max(Sigma_g_tauones)
+
+    if ViewIndividualFits:
+        print("max_Sigma_g_tauones",max_Sigma_g_tauones,"max_Sigma_g_thins",max_Sigma_g_thins)
+    Sigma_g_init=max_Sigma_g_tauones*init_sigmag_modulation
 
     #datamin = data.min()
     #Icont_0 = datamin
@@ -422,7 +427,8 @@ def parspar(n):
 
 
         
-    m.limits['Sigma_g']=(0., 1000.*max_Sigma_g_thins)
+    m.limits['Sigma_g']=(min_Sigma_g_thins/10., 10.*max_Sigma_g_tauones)
+    
     #m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
     #m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
     m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
@@ -454,7 +460,7 @@ def parspar(n):
                 Debug=True
             bnds.append(m.limits[aname])
 
-        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(3.*NitMCMC/4),n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss])
+        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(3.*NitMCMC/4),n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss,names])
 
 
         
@@ -612,22 +618,33 @@ def lnlike(theta,nusmaskeds,datamaskeds,rmss):
     return -0.5*master_chi2(nusmaskeds, v0, Temp, Sigma_g, vturb, datamaskeds, rmss)
 
 
-def lnprior(theta,bnds):
+def lnprior(names,theta,bnds):
     inside=1
     
     for iparam in list(range(len(theta))):
-        if (bnds[iparam][0] < theta[iparam] < bnds[iparam][1]):
-            inside *=1
+        aname=names[iparam]
+        if (aname == 'Sigma_g'):
+            if (theta[iparam] <= 0.):
+                inside *=0
+            else:
+                if (np.log10(bnds[iparam][0]) < np.log10(theta[iparam]) < np.log10(bnds[iparam][1])):
+                    inside *=1
+                    inside *= np.exp(-theta[iparam]/(bnds[iparam][1]/10.))
+                else:
+                    inside *=0
         else:
-            inside *=0
+            if (bnds[iparam][0] < theta[iparam] < bnds[iparam][1]):
+                inside *=1
+            else:
+                inside *=0
 
     if (inside): 
         return 0.0
     else:
         return -np.inf
 
-def lnprob(theta,bnds,nusmaskeds,datamaskeds,rmss):
-    lp = lnprior(theta,bnds)
+def lnprob(theta,bnds,nusmaskeds,datamaskeds,rmss,names):
+    lp = lnprior(names,theta,bnds)
     if not np.isfinite(lp):
         return -np.inf
     return lp + lnlike(theta,nusmaskeds,datamaskeds,rmss)
