@@ -620,7 +620,7 @@ def lnlike(theta,nusmaskeds,datamaskeds,rmss):
 
 def lnprior(names,theta,bnds):
     inside=1
-    
+    lnpriorvalue=0.    
     for iparam in list(range(len(theta))):
         aname=names[iparam]
         if (aname == 'Sigma_g'):
@@ -629,7 +629,7 @@ def lnprior(names,theta,bnds):
             else:
                 if (np.log10(bnds[iparam][0]) < np.log10(theta[iparam]) < np.log10(bnds[iparam][1])):
                     inside *=1
-                    inside *= np.exp(-theta[iparam]/(bnds[iparam][1]/10.))
+                    lnpriorvalue=-theta[iparam]/(bnds[iparam][1]/10.)
                 else:
                     inside *=0
         else:
@@ -639,7 +639,7 @@ def lnprior(names,theta,bnds):
                 inside *=0
 
     if (inside): 
-        return 0.0
+        return lnpriorvalue
     else:
         return -np.inf
 
