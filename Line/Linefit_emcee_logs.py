@@ -1119,10 +1119,10 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     punchout.append({'data':errlog10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errlog10Sigma_g.fits'}) 
 
 
-    punchout.append({'data':10.*errlog10Turbvel/log10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errvturb.fits'}) 
-    punchout.append({'data':10.*errlog10Temperature/log10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'errtemperature.fits'})
+    punchout.append({'data':np.log(10.)*errlog10Turbvel*(10**log10Turbvel),'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errvturb.fits'}) 
+    punchout.append({'data':np.log(10.)*errlog10Temperature*(10**log10Temperature),'BUNIT':'K','BTYPE':'Temperature','outfile':'errtemperature.fits'})
     punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
-    punchout.append({'data':10.*errlog10Sigma_g_im/log10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errSigma_g.fits'}) 
+    punchout.append({'data':np.log(10.)*errlog10Sigma_g_im*(10**log10Sigma_g_im),'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errSigma_g.fits'}) 
 
 
     if DoMCMC:
