@@ -1,6 +1,6 @@
 """
 Package for CO rotational line fitting using uniform slab models. 
-S. Casassus & F. Alarcon
+S. Casassus & F. Alarcon & C. Flores
 """
 
 
