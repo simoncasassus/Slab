@@ -24,6 +24,15 @@ from pprint import pprint
 from tqdm import tqdm
 import re
 
+import matplotlib.pyplot as plt
+
+if not sys.warnoptions:
+    import os, warnings
+    #warnings.simplefilter("default") # Change the filter in this process
+    warnings.simplefilter("ignore") # Change the filter in this process
+    #os.environ["PYTHONWARNINGS"] = "default" # Also affect subprocesses
+    os.environ["PYTHONWARNINGS"] = "ignore" # Also affect subprocesses
+
 include_path='/home/simon/common/python/include/'
 sys.path.append(include_path)
 
@@ -189,9 +198,11 @@ def intensity_err(nu, nu0, Tk,Sigma_g, vturb, datos, rms,iiso):
     chi2 = np.sum(aux)/rms**2
     return chi2
 
-def master_chi2(nuss, v0, Temp, Sigma_g, vturb, datas, rmss):
+def master_chi2(nuss, v0, log10Temp, log10Sigma_g, log10vturb, datas, rmss):
 
-
+    Temp=10**(log10Temp)
+    Sigma_g=10**(log10Sigma_g)
+    vturb=10**(log10vturb)
 
     chi2=0.
     for iiso,adata in enumerate(datas):
@@ -277,18 +288,20 @@ def parspar(n):
     #T_limits = (3.,1.5*T_init)
 
     if (T_init > T_min):
-        T_limits = (T_min,2.*T_init)
+        T_limits = (T_min,10.*T_init)
+        log10T_limits = (np.log10(T_min),np.log10(10.*T_init))
     else:
         T_init=T_min
-        T_limits = (T_min,T_min)
-
+        T_limits = (T_min,10.*T_min)
+        log10T_limits = (np.log10(T_min),np.log10(10.*T_min))
+        
     if Fix_Temp:
         T_init=T_min
 
     vel_peak=vel_peaks[0]
     v0_init=vel_peak * 1E3 * 1E2 # init centroid velocity in CGS
 
-    vturb_init=0.
+    vturb_init=1E4 
 
     Sigma_g_thins=[]
     Sigma_g_tauones=[]
@@ -323,8 +336,8 @@ def parspar(n):
         Sigma_g_tauones.append(Sigma_g_tauone)
         
         typicalint=datamax
-        if (datamax < (3. *rms)):
-            typicalint = 3.*rms
+        if (datamax < (3. *rms)): 
+           typicalint = 3.*rms
 
             
         Sigma_g_thin = typicalint/ (bbody(T_init,nu0_init)*kappa_L*f_CO*f_abund*phi(T_init,restfreq,restfreq,vturb_init,molecule_mass))
@@ -333,7 +346,13 @@ def parspar(n):
         if ViewIndividualFits:
             print("iiso ",iiso,"typical int ", typicalint,"Sigma_g_thin",Sigma_g_thin, "f_CO", f_CO, "f_abund", f_abund)
 
-    Sigma_g_init=max(Sigma_g_thins)*init_sigmag_modulation
+    max_Sigma_g_thins=max(Sigma_g_thins)
+    min_Sigma_g_thins=min(Sigma_g_thins)
+    max_Sigma_g_tauones=max(Sigma_g_tauones)
+
+    if ViewIndividualFits:
+        print("max_Sigma_g_tauones",max_Sigma_g_tauones,"max_Sigma_g_thins",max_Sigma_g_thins)
+    Sigma_g_init=max_Sigma_g_tauones*init_sigmag_modulation
 
     #datamin = data.min()
     #Icont_0 = datamin
@@ -373,8 +392,8 @@ def parspar(n):
     if ViewIndividualFits:
         print("Temp=",T_init," vturb=",vturb_init," Sigma_g=",Sigma_g_init," v0=",v0_init)
 
-    f = lambda Temp,vturb,Sigma_g, v0: master_chi2(nusmaskeds, v0, Temp, Sigma_g, vturb, datamaskeds, rmss)
-    m = Minuit(f, Temp=T_init, vturb=vturb_init, Sigma_g=Sigma_g_init, v0=v0_init)
+    f = lambda log10Temp,log10vturb,log10Sigma_g, v0: master_chi2(nusmaskeds, v0, log10Temp, log10Sigma_g, log10vturb, datamaskeds, rmss)
+    m = Minuit(f, log10Temp=np.log10(T_init), log10vturb=np.log10(vturb_init), log10Sigma_g=np.log10(Sigma_g_init), v0=v0_init)
 
     m.tol=1e-4
     
@@ -391,9 +410,9 @@ def parspar(n):
     ###fix_Temp = True,
     ###fix_nu0 = True,
     # 
-    m.errors['Temp']=1.
-    m.errors['Sigma_g']=0.00001
-    m.errors['vturb']=100.
+    m.errors['log10Temp']=0.02
+    m.errors['log10Sigma_g']=0.1 #0.00001
+    m.errors['log10vturb']=0.01 # 100.
     m.errors['v0']=0.01*1E5
     #
     #
@@ -405,32 +424,70 @@ def parspar(n):
 
     if Fix_Temp:
         T_limits = (T_min,T_min)
-        m.fixed['Temp']=True
+        m.fixed['log10Temp']=True
 
     else:
-        m.limits['Temp']=T_limits
+        m.limits['log10Temp']=log10T_limits
+
 
         
-    m.limits['Sigma_g']=(0., 1.5*Sigma_g_init)
+    m.limits['log10Sigma_g']=(np.log10(min_Sigma_g_thins/10.), np.log10(10.*max_Sigma_g_tauones))
+    
     #m.limits['v0']=(v0_init-10.*1E5, v0_init+10.*1E5)
     #m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
-    m.limits['v0']=(v0_init-1.*1E5, v0_init+1.*1E5)
+    m.limits['v0']=(v0_init-2.*1E5, v0_init+2.*1E5)
 
     if Fix_vturb:
-        m.fixed['vturb']=True
+        m.fixed['log10vturb']=True
         # sys.exit('FIXED VTURB')
     else:
         #m.limits['vturb']=(0.0, 2E4)
-        m.limits['vturb']=(0.0, 1E5)
+        m.limits['log10vturb']=(np.log10(0.01E5), np.log10(5E5))
         #m.limits['vturb']=(0.0, 4E4)
 
     m.errordef=Minuit.LEAST_SQUARES
     
     
     m.migrad()
-    errmod = f(m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0'])
-    fit = [m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0']];
+    #errmod = f(m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0'])
+    fit = [m.values['log10Temp'], m.values['log10vturb'], m.values['log10Sigma_g'], m.values['v0']]
 
+
+    
+    if DoMCMC:
+        names= ['log10Temp', 'log10vturb','log10Sigma_g','v0']
+        bnds=[]
+        for aname in names:
+            Debug=False
+            if ViewIndividualFits:
+                print("adding limits : ",aname,m.limits[aname])
+                Debug=True
+            bnds.append(m.limits[aname])
+
+        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(3.*NitMCMC/4),n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss,names])
+
+
+        
+        for iname,aname in enumerate(names):
+            aresult_mcmc=result_mcmc[0][iname]
+            if ViewIndividualFits:
+                print(aname," ML :",fit[iname]," ->-> ",aresult_mcmc[0])
+            fit[iname]=aresult_mcmc[0]
+            m.values[aname]=aresult_mcmc[0]
+            
+
+        DoMigradTwice=False
+        if DoMigradTwice:
+            if ViewIndividualFits:
+                print("Running Migrad again with emcee init")
+            
+            m.migrad()
+            fit = [m.values['log10Temp'], m.values['log10vturb'], m.values['log10Sigma_g'], m.values['v0']]
+
+            
+    errmod = f(m.values['log10Temp'], m.values['log10vturb'], m.values['log10Sigma_g'], m.values['v0'])
+
+            
     isomodelsij=[]
     isotaus0ij=[]
     
@@ -440,7 +497,7 @@ def parspar(n):
         nu0=restfreq-(v0/c_light)*restfreq
         data=datas[iiso]
         rms=rmss[iiso]
-        modelij, tau0ij, taus = intensity(nus, fit[0], nu0, fit[2], fit[1],iiso)
+        modelij, tau0ij, taus = intensity(nus, 10**fit[0], nu0, 10**fit[2], 10**fit[1],iiso)
         isomodelsij.append(modelij)
         isotaus0ij.append(tau0ij)
         
@@ -470,6 +527,8 @@ def parspar(n):
         
     #return [j,i,fit, model[j,i], tau0[j,i]]
     passout=[j,i,fit, errmodelij, isomodelsij, isotaus0ij]
+    if DoMCMC:
+        passout.append(result_mcmc)
     #pbar.update(ncores)
     return passout
 
@@ -550,8 +609,235 @@ def initMoldata(moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2):
         molecule_masses.append(molecule_mass)
 
 
+
+def lnlike(theta,nusmaskeds,datamaskeds,rmss):
+
+    nvar=len(theta)
+    #names= ['logTemp', 'vturb','logSigma_g','v0']
+    v0=theta[3]
+    log10Temp=theta[0]
+    log10vturb=theta[1]
+    log10Sigma_g=theta[2]
+
+    return -0.5*master_chi2(nusmaskeds, v0, log10Temp, log10Sigma_g, log10vturb, datamaskeds, rmss)
+
+def lnprior(names,theta,bnds):
+    inside=1
+    lnpriorvalue=0.    
+    for iparam in list(range(len(theta))):
+        aname=names[iparam]
+        if (bnds[iparam][0] < theta[iparam] < bnds[iparam][1]):
+            inside *=1
+        else:
+            inside *=0
+
+    if (inside): 
+        return lnpriorvalue
+    else:
+        return -np.inf
+
+
+#def lnprior(names,theta,bnds):
+#    inside=False
+#    lnpriorvalue=0.    
+#    for iparam in list(range(len(theta))):
+#        aname=names[iparam] 
+#
+#        #if (aname == 'log10vturb'):
+#        #    print('setting prior for log10vturb bnds ',bnds[iparam])
+#            
+#        if (bnds[iparam][0] < theta[iparam] < bnds[iparam][1]):
+#            inside=True
+#    if (inside): 
+#        return lnpriorvalue
+#    else:
+#        return -np.inf
+#
+
+def lnprob(theta,bnds,nusmaskeds,datamaskeds,rmss,names):
+    lp = lnprior(names,theta,bnds)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp + lnlike(theta,nusmaskeds,datamaskeds,rmss)
+
+
+def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n_cores=1,workdir='',lnprobargs=[]):
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True):
+
+    ranges = list(map( (lambda x: x[1]-x[0]),bnds))
+    allowed_ranges=np.array(ranges)
+    if Debug:
+        print("bnds ",bnds)
+        print("allowed_ranges ",allowed_ranges)
+    nvar = len(names)
+    
+    if Debug:
+        print( "mcmc with nvar=",nvar)
+    
+    ndim =nvar
+    pos=[]
+    for i in list(range(nwalkers)):
+        if (np.any(allowed_ranges < 0.)):
+            sys.exit("wrong order of bounds in domains")
+        awalkerinit=result_ml+(1e-3*np.random.randn(ndim)*allowed_ranges)
+        for j in list(range(ndim)):
+            lowerlimit=bnds[j][0]
+            upperlimit=bnds[j][1]
+            if (awalkerinit[j]<lowerlimit):
+                awalkerinit[j]=lowerlimit
+            if (awalkerinit[j]>upperlimit):
+                awalkerinit[j]=upperlimit
+            
+        #awalkerinit=result_ml+(np.random.randn(ndim)*allowed_ranges)
+        pos.append(awalkerinit)
+
+    if Debug:
+        print("init for emcee :", result_ml)
+        #print("pos:",pos)
+        
+    import emcee
+
+    #RunMCMC=True
+    #if RunMCMC:
+    if Debug:
+        print( bnds)
+        print( "Linefit_emcee:  calling  emcee  with Nit",Nit," nmwalkers",nwalkers," n_cores",n_cores)
+
+    #from multiprocessing import Pool
+    #with Pool(n_cores) as pool:
+
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=lnprobargs)
+
+    #start = time.time()
+    ProgressBar=False
+    if ViewIndividualFits:
+        ProgressBar=True
+    sampler.run_mcmc(pos, Nit, progress=ProgressBar)
+    #end = time.time()
+    #multi_time = end - start
+    #print("Multiprocessing took {0:.1f} seconds".format(multi_time))
+
+    if Debug:
+        print( "************ finish ***************")
+    samples = sampler.chain  # chain= array(nwalkers,nit,ndim)
+    lnprobs = sampler.lnprobability
+
+    if Debug:
+        ######### save samples
+        np.save(workdir+'samples.dat',samples)
+        np.save(workdir+'lnprobs.dat',lnprobs)
+        # end time
+        #t_f = time.strftime("%y-%m-%d %h:%m:%s", time.gmtime())
+        #print( "t_i = "+str(t_i))
+        #print( "t_f = "+str(t_f))
+
+        #print(("mean acceptance fraction: {0:.3f} "  .format(np.mean(sampler.acceptance_fraction))))
+        #f=open(workdir+'acceptance.dat', 'w')
+        #f.write(str(t_i)+' \n')
+        #f.write(str(t_f)+' \n')
+        #f.write("Nit = "+str(Nit)+' \n')
+        #f.write("nwalkers = "+str(nwalkers)+' \n')
+        #f.write("ndim = "+str(ndim)+' \n')
+        #f.write("mean acceptance fraction: {0:.3f}"  .format(np.mean(sampler.acceptance_fraction)) +' \n')
+        #f.close() 
+
+    #autocorr=sampler.get_autocorr_time(c=1, low=1)
+    #print( "autocorr\n",autocorr  )
+        
+    #else:
+    #    samples=np.load(workdir+'samples.dat.npy')
+    #    lnprobs=np.load(workdir+'lnprobs.dat.npy')
+        
+
+
+
+        
+    chains=np.zeros(((Nit-burn_in)*nwalkers,ndim))
+    chains2=np.zeros((Nit-burn_in, nwalkers,ndim))
+    lnpchain=np.zeros(((Nit-burn_in)*nwalkers))
+    lnpchain2=np.zeros(((Nit-burn_in), nwalkers))
+    
+
+
+    chains[:,:]=samples[:,burn_in:,:].reshape((nwalkers*(Nit-burn_in), ndim),order='c')
+    lnpchain[:]=lnprobs[:,burn_in:].reshape((nwalkers*(Nit-burn_in)),order='c')
+    
+    ibestparams=np.argmax(lnpchain)
+    bestparams=chains[ibestparams,:]
+
+    if Debug:
+        ######### save bestparams
+        np.save(workdir+'bestparams.dat',bestparams)
+    
+
+    for j in list(range(nwalkers)):
+        chains2[:,j,:]=samples[j,burn_in:,:].reshape((Nit-burn_in, ndim),order='c')
+        lnpchain2[:,j]=lnprobs[j,burn_in:].reshape(((Nit-burn_in)),order='c')
+
+    if Debug:
+        fig=plt.figure(figsize=(10,8))
+        par_labels=names
+        ax_lnprob=fig.add_subplot(ndim+1,1,ndim+1)
+        for ip in list(range(ndim)):
+            ax_chain=fig.add_subplot(ndim+1,1,ip+1)
+            for i in list( range(nwalkers)):
+                ax_chain.plot(chains2[:,i,ip],alpha=0.1)
+                ax_chain.set_ylabel(par_labels[ip])
+
+                ax_lnprob.plot(lnpchain2[:,i],alpha=0.1)
+                ax_lnprob.set_ylabel('ln(p)')
+
+        #plt.show()
+        plt.savefig(workdir+'chains.png', bbox_inches='tight')
+        plt.close(fig)
+
+
+
+    #samples = sampler.chain[:, burn_in:, :].reshape((-1, ndim))
+
+    
+    mcmc_results = list(map(lambda v: [v[1], v[2]-v[1], v[1]-v[0]],
+                             zip(*np.percentile(chains, [16, 50, 84],
+                                                axis=0))))
+
+    if Debug:
+        np.save(workdir+'mcmc_results.dat',mcmc_results)
+
+        mcmc_results_0 = np.zeros(nvar)
+
+        print( "param     distrib     max ")
+        for iparam in list(range(nvar)):
+            print( names[iparam],mcmc_results[iparam],bestparams[iparam])
+            mcmc_results_0[iparam]= mcmc_results[iparam][0]
+
+
+        #print( "mcmc median values:")
+        #model_median =  np.array(modelfunk(mcmc_results_0, m))
+
+
+
+        import corner
+
+        fig=corner.corner(chains,
+                          labels=names,
+                          quantiles=[0.16, 0.5,0.84],
+                          bins=20, truths=bestparams,
+                          levels=[0.68, 0.95, 0.997],
+                          show_titles=True,
+                          title_fmt=".3f",
+                          title_kwards={"fontsize": 10}) #, smooth=1.0
+
+
+
+
+        fig.savefig(workdir+'cornerplot.png')
+
+        print( "finished MCMC")
+        
+    return [mcmc_results]
+
+    
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False):
 
     
     
@@ -566,6 +852,15 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global BadChannels
     global init_sigmag_modulation
     global T_min
+
+    global DoMCMC
+    global NitMCMC
+    DoMCMC=RunMCMC
+    NitMCMC=NiterMCMC
+    
+    global workdir
+    workdir=outputdir
+    
     T_min=T_minimum
     init_sigmag_modulation=Init_Sigma_g_modul
     
@@ -605,8 +900,8 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
             unitfactor = 1E-26 * 1E7 * 1E-4 / omegabeam
             cubo *= unitfactor
 
-            Debug=True
-            if Debug:
+            storeCGS=False
+            if storeCGS:
                 rout=pf.PrimaryHDU(cubo)
                 rout.header=head
                 ainputcubefile_CGS=re.sub('.fits','_CGS.fits',ainputcubefile)
@@ -639,7 +934,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
 
     maskradpixels = int(maxradius / pixscl)
-    print("maskradpixels ",maskradpixels)
+    print("maxradius ",maxradius," pixscl ", pixscl, "maskradpixels ",maskradpixels)
     nx=head['NAXIS1']
     ny=head['NAXIS2']
     ii=np.arange(0,nx)
@@ -704,14 +999,30 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     
         
     ndim = head['NAXIS1']
-    Temperature = np.zeros((ndim,ndim))
+    log10Temperature = np.zeros((ndim,ndim))
     tau0 = np.zeros((ndim,ndim))
-    Sigma_g_im = np.zeros((ndim,ndim))
-    Turbvel = np.zeros((ndim,ndim))
+    log10Sigma_g_im = np.zeros((ndim,ndim))
+    log10Turbvel = np.zeros((ndim,ndim))
     velo_centroid = np.zeros((ndim,ndim))
     errmodel = np.zeros((ndim,ndim))
     dust = np.zeros((ndim,ndim,cubo.shape[0]))
 
+    errlog10Temperature = np.zeros((ndim,ndim))
+    errlog10Sigma_g_im = np.zeros((ndim,ndim))
+    errlog10Turbvel = np.zeros((ndim,ndim))
+    errvelo_centroid = np.zeros((ndim,ndim))
+
+    if DoMCMC:
+        erruplog10Temperature = np.zeros((ndim,ndim))
+        erruplog10Sigma_g_im = np.zeros((ndim,ndim))
+        erruplog10Turbvel = np.zeros((ndim,ndim))
+        errupvelo_centroid = np.zeros((ndim,ndim))
+        errlolog10Temperature = np.zeros((ndim,ndim))
+        errlolog10Sigma_g_im = np.zeros((ndim,ndim))
+        errlolog10Turbvel = np.zeros((ndim,ndim))
+        errlovelo_centroid = np.zeros((ndim,ndim))
+        
+    
     nisos=len(inputcubefiles)
     
     models = []
@@ -739,38 +1050,92 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
     print("Done whole pool")
 
-
+    if ViewIndividualFits:
+        return
+        
     for ls in Pooloutput:
-        if len(ls)!=6:
+        if len(ls)<=1:
             continue
         j = ls[0]
         i = ls[1]
         fit = ls[2]
-        Temperature[j,i] = fit[0]
-        Sigma_g_im[j,i] = fit[2]
-        Turbvel[j,i] = fit[1]
+        log10Temperature[j,i] = fit[0]
+        log10Sigma_g_im[j,i] = fit[2]
+        log10Turbvel[j,i] = fit[1]
         velo_centroid[j,i]= fit[3]*1E-5
 
                      
-        rettau0s  = ls[-1]
-        retmodels = ls[-2]
+        rettau0s  = ls[5]
+        retmodels = ls[4]
         for iiso in list(range(nisos)):
             models[iiso][:,j,i]=retmodels[iiso]
             isotau0s[iiso][j,i]=rettau0s[iiso]
                   
-        errmodel[j,i] = ls[-3]
+        errmodel[j,i] = ls[3]
 
 
-
+        if DoMCMC:
+            result_mcmc=ls[-1][0]
+            #names= ['Temp', 'vturb','Sigma_g','v0']
+            erruplog10Temp=result_mcmc[0][1]
+            errlolog10Temp=result_mcmc[0][2]
+            erruplog10vturb=result_mcmc[1][1]
+            errlolog10vturb=result_mcmc[1][2]
+            erruplog10Sigma_g=result_mcmc[2][1]
+            errlolog10Sigma_g=result_mcmc[2][2]
+            errupv0=result_mcmc[3][1]
+            errlov0=result_mcmc[3][2]
+            
+            erruplog10Temperature[j,i] = erruplog10Temp
+            erruplog10Sigma_g_im[j,i] = erruplog10Sigma_g
+            erruplog10Turbvel[j,i] = erruplog10vturb
+            errupvelo_centroid[j,i]= errupv0*1E-5
+            errlolog10Temperature[j,i] = errlolog10Temp
+            errlolog10Sigma_g_im[j,i] = errlolog10Sigma_g
+            errlolog10Turbvel[j,i] = errlolog10vturb
+            errlovelo_centroid[j,i]= errlov0*1E-5
+            
+            errlog10Temperature[j,i] = (erruplog10Temp+errlolog10Temp)/2.
+            errlog10Sigma_g_im[j,i] = (erruplog10Sigma_g+errlolog10Sigma_g)/2.
+            errlog10Turbvel[j,i] = (erruplog10vturb+errlolog10vturb)/2.
+            errvelo_centroid[j,i]= ((errupv0+errlov0)/2.)*1E-5
+            
 
     punchout=[]
-    punchout.append({'data':Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'Sigma_g.fits'}) 
-    punchout.append({'data':Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'vturb.fits'}) 
-    punchout.append({'data':Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'temperature.fits'}) 
+    punchout.append({'data':log10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'log10Sigma_g.fits'}) 
+    punchout.append({'data':10**(log10Sigma_g_im),'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'Sigma_g.fits'}) 
+    punchout.append({'data':log10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'log10vturb.fits'}) 
+    punchout.append({'data':10**(log10Turbvel),'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'vturb.fits'}) 
+    punchout.append({'data':log10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'log10temperature.fits'}) 
+    punchout.append({'data':10**(log10Temperature),'BUNIT':'K','BTYPE':'Temperature','outfile':'temperature.fits'}) 
     for iiso in list(range(nisos)):
         punchout.append({'data':isotau0s[iiso],'BUNIT':'N/A','BTYPE':'OpticalDepth','outfile':'tau0_'+isonames[iiso]+'.fits'}) 
 
-    punchout.append({'data':velo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'velocentroid.fits'}) 
+    punchout.append({'data':velo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'velocentroid.fits'})
+
+    punchout.append({'data':errlog10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errlog10vturb.fits'}) 
+    punchout.append({'data':errlog10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'errlog10temperature.fits'})
+    punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
+    punchout.append({'data':errlog10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errlog10Sigma_g.fits'}) 
+
+
+    punchout.append({'data':np.log(10.)*errlog10Turbvel*(10**log10Turbvel),'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errvturb.fits'}) 
+    punchout.append({'data':np.log(10.)*errlog10Temperature*(10**log10Temperature),'BUNIT':'K','BTYPE':'Temperature','outfile':'errtemperature.fits'})
+    punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
+    punchout.append({'data':np.log(10.)*errlog10Sigma_g_im*(10**log10Sigma_g_im),'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errSigma_g.fits'}) 
+
+
+    if DoMCMC:
+        punchout.append({'data':erruplog10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'erruplog10vturb.fits'}) 
+        punchout.append({'data':errlolog10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errlolog10vturb.fits'}) 
+        punchout.append({'data':erruplog10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'erruplog10temperature.fits'}) 
+        punchout.append({'data':errlolog10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'errlolog10temperature.fits'}) 
+        punchout.append({'data':erruplog10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'erruplog10Sigma_g.fits'}) 
+        punchout.append({'data':errlolog10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errlolog10Sigma_g.fits'}) 
+        punchout.append({'data':errupvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errupvelocentroid.fits'}) 
+        punchout.append({'data':errlovelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errlovelocentroid.fits'})
+
+    
     punchout.append({'data':errmodel,'BUNIT':'erg/s/cm2/Hz/sr','BTYPE':'Intensity','outfile':'fiterror.fits'}) 
     
     for apunchout in punchout:
