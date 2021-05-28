@@ -630,6 +630,7 @@ def lnprior(names,theta,bnds):
                 if (np.log10(bnds[iparam][0]) < np.log10(theta[iparam]) < np.log10(bnds[iparam][1])):
                     inside *=1
                     lnpriorvalue=-theta[iparam]/(bnds[iparam][1]/10.)
+                    #lnpriorvalue=-np.log10(theta[iparam]/(bnds[iparam][1]/10.))
                 else:
                     inside *=0
         else:
