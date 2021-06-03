@@ -837,7 +837,7 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False):
 
     
     
@@ -900,11 +900,12 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
             unitfactor = 1E-26 * 1E7 * 1E-4 / omegabeam
             cubo *= unitfactor
 
-            storeCGS=False
+            
             if storeCGS:
                 rout=pf.PrimaryHDU(cubo)
                 rout.header=head
                 ainputcubefile_CGS=re.sub('.fits','_CGS.fits',ainputcubefile)
+                print("stored CGS datacube:",ainputcubefile_CGS)
                 rout.writeto(ainputcubefile_CGS, overwrite=True)
 
             
