@@ -837,7 +837,7 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True):
 
     
     
@@ -857,7 +857,10 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global NitMCMC
     DoMCMC=RunMCMC
     NitMCMC=NiterMCMC
-    
+
+    if DoMCMC:
+        PunchErrorMaps=True
+        
     global workdir
     workdir=outputdir
     
@@ -872,6 +875,9 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     #f_CO=1E-4
     
     ViewIndividualFits=ViewIndividualSpectra
+
+    if ViewIndividualFits:
+        CleanWorkDir=False
     
     initMoldata(moldatafiles=moldatafiles,J_up=J_up)
 
@@ -930,7 +936,8 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         outputdir+='/'
         print("added trailing back slash to outputdir")
 
-    #os.system("rm -rf "+outputdir)
+    if CleanWorkDir:
+         os.system("rm -rf "+outputdir)
     os.system("mkdir "+outputdir)
 
 
@@ -1114,16 +1121,18 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
     punchout.append({'data':velo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'velocentroid.fits'})
 
-    punchout.append({'data':errlog10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errlog10vturb.fits'}) 
-    punchout.append({'data':errlog10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'errlog10temperature.fits'})
-    punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
-    punchout.append({'data':errlog10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errlog10Sigma_g.fits'}) 
+
+    if PunchErrorMaps:
+        punchout.append({'data':errlog10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errlog10vturb.fits'}) 
+        punchout.append({'data':errlog10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'errlog10temperature.fits'})
+        punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
+        punchout.append({'data':errlog10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errlog10Sigma_g.fits'}) 
 
 
-    punchout.append({'data':np.log(10.)*errlog10Turbvel*(10**log10Turbvel),'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errvturb.fits'}) 
-    punchout.append({'data':np.log(10.)*errlog10Temperature*(10**log10Temperature),'BUNIT':'K','BTYPE':'Temperature','outfile':'errtemperature.fits'})
-    punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
-    punchout.append({'data':np.log(10.)*errlog10Sigma_g_im*(10**log10Sigma_g_im),'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errSigma_g.fits'}) 
+        punchout.append({'data':np.log(10.)*errlog10Turbvel*(10**log10Turbvel),'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'errvturb.fits'}) 
+        punchout.append({'data':np.log(10.)*errlog10Temperature*(10**log10Temperature),'BUNIT':'K','BTYPE':'Temperature','outfile':'errtemperature.fits'})
+        punchout.append({'data':errvelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errvelocentroid.fits'}) 
+        punchout.append({'data':np.log(10.)*errlog10Sigma_g_im*(10**log10Sigma_g_im),'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'errSigma_g.fits'}) 
 
 
     if DoMCMC:
