@@ -476,7 +476,7 @@ def parspar(n):
             m.values[aname]=aresult_mcmc[0]
             
 
-        DoMigradTwice=False
+        
         if DoMigradTwice:
             if ViewIndividualFits:
                 print("Running Migrad again with emcee init")
@@ -543,7 +543,7 @@ def initMoldata(moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2):
     global isonames
 
     global h_P, c_light, k_B,  mp, mH2
-    
+
     # constants in cgs units
     h_P = const.h.cgs.value
     c_light = const.c.cgs.value
@@ -837,7 +837,7 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False):
 
     
     
@@ -854,7 +854,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global T_min
 
     global DoMCMC
-    global NitMCMC
+    global NitMCMC    
     DoMCMC=RunMCMC
     NitMCMC=NiterMCMC
 
@@ -863,7 +863,10 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         
     global workdir
     workdir=outputdir
-    
+
+    global DoMigradTwice
+    DoMigradTwice=RepeatMigrad
+
     T_min=T_minimum
     init_sigmag_modulation=Init_Sigma_g_modul
     
