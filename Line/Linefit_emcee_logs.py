@@ -21,6 +21,8 @@ import astropy.constants as const
 from copy import deepcopy
 from pprint import pprint
 
+import numpy.ma as ma
+
 from tqdm import tqdm
 import re
 
@@ -232,7 +234,7 @@ def parspar(n):
     weightss=[]
     datamaskeds=[]
     nusmaskeds=[]
-
+    
     for iiso,acubo in enumerate(cubos):
 
         velocities=velocitiess[iiso]
@@ -250,6 +252,28 @@ def parspar(n):
         weightss.append(weights)
         
         data = acubo[:,j,i]
+
+        if MaskCubes:
+            thismaskcube=pf.open(MaskCubes[iiso])[0].data
+
+            if ViewIndividualFits:
+                print("MaskCubes ",iiso,len(data))
+                specobs=np.zeros((len(data),2))
+                specmod=np.zeros((len(data),2))
+                specobs[:,0]=velocities
+                specobs[:,1]=data.copy()
+
+            if (isinstance(thismaskcube,np.ndarray)):
+                masklos=np.logical_not(ma.make_mask(thismaskcube[:,j,i]))
+                data[masklos]=0.
+                
+                if ViewIndividualFits:
+                    specmod[:,0]=velocities
+                    specmod[:,1]=data
+                    Vtools.Spec([specobs,specmod])
+
+
+        
         datas.append(data)
         nus=nuss[iiso]
 
@@ -280,8 +304,27 @@ def parspar(n):
         vel_peaks.append(vel_peak)
         I_peaks.append(datamax)
 
-       
- 
+
+            
+    if (max(I_peaks)<=0.):
+        fit=np.zeros(4)
+        errmodelij=0.
+        isomodelsij=[]
+        isotaus0ij=[]
+        for iiso,velocities in enumerate(velocitiess):
+            isomodelsij.append(np.zeros(len(velocities)))
+            isotaus0ij.append(0.)
+                         
+        passout=[j,i,fit, errmodelij, isomodelsij, isotaus0ij]
+        if DoMCMC:
+            #result_mcmc=[[]]*4
+            #result_mcmc[0].append([0.,] * 3)
+            # result_mcmc= [[0.,] * 3, [0.,] * 3, [0.,] * 3, [0.,] * 3]
+            result_mcmc= [[[0.,0.,0.], [0.,0.,0.], [0.,0.,0.], [0.,0.,0.]]]
+            passout.append(result_mcmc)
+
+        return passout
+    
         
     T_init=T_inits[0] # max(T_inits)
     #T_limits = (0.5*T_init,1.5*T_init)
@@ -301,7 +344,6 @@ def parspar(n):
     vel_peak=vel_peaks[0]
     v0_init=vel_peak * 1E3 * 1E2 # init centroid velocity in CGS
 
-    vturb_init=1E4 
 
     Sigma_g_thins=[]
     Sigma_g_tauones=[]
@@ -341,7 +383,9 @@ def parspar(n):
 
             
         Sigma_g_thin = typicalint/ (bbody(T_init,nu0_init)*kappa_L*f_CO*f_abund*phi(T_init,restfreq,restfreq,vturb_init,molecule_mass))
-        Sigma_g_thins.append(Sigma_g_thin)
+        
+        if (Sigma_g_thin > 0.):
+            Sigma_g_thins.append(Sigma_g_thin) 
 
         if ViewIndividualFits:
             print("iiso ",iiso,"typical int ", typicalint,"Sigma_g_thin",Sigma_g_thin, "f_CO", f_CO, "f_abund", f_abund)
@@ -442,7 +486,7 @@ def parspar(n):
         # sys.exit('FIXED VTURB')
     else:
         #m.limits['vturb']=(0.0, 2E4)
-        m.limits['log10vturb']=(np.log10(0.01E5), np.log10(5E5))
+        m.limits['log10vturb']=(np.log10(1E2), np.log10(5E5))
         #m.limits['vturb']=(0.0, 4E4)
 
     m.errordef=Minuit.LEAST_SQUARES
@@ -452,10 +496,14 @@ def parspar(n):
     #errmod = f(m.values['Temp'], m.values['vturb'], m.values['Sigma_g'], m.values['v0'])
     fit = [m.values['log10Temp'], m.values['log10vturb'], m.values['log10Sigma_g'], m.values['v0']]
 
-
-    
+    if ViewIndividualFits:
+        print("best fit",fit)
+        
     if DoMCMC:
         names= ['log10Temp', 'log10vturb','log10Sigma_g','v0']
+        if Fix_vturb:
+            m.limits['log10vturb']=(np.log10(v_turb_init),np.log10(v_turb_init))
+            
         bnds=[]
         for aname in names:
             Debug=False
@@ -837,7 +885,7 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False):
 
     
     
@@ -849,10 +897,11 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global Fix_vturb
     global Fix_Temp
 
+    global MaskCubes
     global BadChannels
     global init_sigmag_modulation
     global T_min
-
+    global vturb_init
     global DoMCMC
     global NitMCMC    
     DoMCMC=RunMCMC
@@ -882,6 +931,10 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     if ViewIndividualFits:
         CleanWorkDir=False
     
+    MaskCubes=False
+    if cubemasks:
+        MaskCubes = cubemasks
+        
     initMoldata(moldatafiles=moldatafiles,J_up=J_up)
 
     ## constants in cgs units
@@ -928,6 +981,13 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         cubos.append(cubo)
         heads.append(head)
         unitfactors.append(unitfactor)
+
+    cubosmasks=[]
+    if MaskCubes:
+        for ainputcubefile in MaskCubes:
+            acubemask, aheadmask = loadfitsdata(ainputcubefile)
+            cubosmasks.append(acubemask)
+        
 
         
     head=heads[0]
@@ -981,7 +1041,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     dnus=[]
     velocitiess=[]
     nuss=[]
-
+    dvels=[]
 
  
     for iiso,amoldatafile in enumerate(moldatafiles):
@@ -1000,10 +1060,15 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         len_nu = ahead['NAXIS3']
         nus= ahead['CRVAL3']+(np.arange(ahead['NAXIS3'])-ahead['CRPIX3']+1)*ahead['CDELT3']
         velocities = -(nus-restfreq)*c_light*1E-5/restfreq # velocities in km/s
-
+        dvel=np.fabs(velocities[1]-velocities[0])
+        
         nuss.append(nus)
         velocitiess.append(velocities)
         dnus.append(dnu)
+        dvels.append(dvel)
+
+    vturb_init=min(dvels)*1E5 # init vturb in cm/s
+        
 
     print("Molecule names:",isonames)
     print("Molecule fractions:",f_abunds)
@@ -1088,6 +1153,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         if DoMCMC:
             result_mcmc=ls[-1][0]
             #names= ['Temp', 'vturb','Sigma_g','v0']
+            # print("result_mcmc i j ",result_mcmc,i, j)
             erruplog10Temp=result_mcmc[0][1]
             errlolog10Temp=result_mcmc[0][2]
             erruplog10vturb=result_mcmc[1][1]
