@@ -186,12 +186,13 @@ def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_erro
 
 
         if SymmetricRange:
-                range2=vsyst+SymmetricRange
-                range1=vsyst-SymmetricRange
-                # subim_grey[np.where(subim_grey < range1)]=vsyst
-                # subim_grey[np.where(subim_grey > range2)]=vsyst
-                clevs = [range1,0.,range2]
-                clabels=['%.0f' % (clevs[0]),'','%.0f' % (clevs[2])]
+            range2=vsyst+SymmetricRange
+            range1=vsyst-SymmetricRange
+            subim_grey[(np.fabs(subim_grey) == 0.)]=vsyst 
+            # subim_grey[np.where(subim_grey < range1)]=vsyst
+            # subim_grey[np.where(subim_grey > range2)]=vsyst
+            clevs = [range1,0.,range2]
+            clabels=['%.0f' % (clevs[0]),'','%.0f' % (clevs[2])]
         elif MedianvalRange:
                 typicalvalue=np.median(subim_grey[mask])
 
@@ -420,7 +421,7 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
             filename_errormap=False
             iplotpos += 1
             #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap=cmap_vturb,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
+            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=5.,DoCB=True, cmap=cmap_vturb,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
 
         if RunMCMC:
             
