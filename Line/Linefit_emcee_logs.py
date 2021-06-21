@@ -198,7 +198,7 @@ def intensity_err(nu, nu0, Tk,Sigma_g, vturb, datos, rms,iiso):
     
     aux = (datos-model)**2
     chi2 = np.sum(aux)/rms**2
-    return chi2
+    return chi2,tau0
 
 def master_chi2(nuss, v0, log10Temp, log10Sigma_g, log10vturb, datas, rmss):
 
@@ -207,16 +207,59 @@ def master_chi2(nuss, v0, log10Temp, log10Sigma_g, log10vturb, datas, rmss):
     vturb=10**(log10vturb)
 
     chi2=0.
+    tau0s=[]
+    Tmaxs=[0.,]
     for iiso,adata in enumerate(datas):
         nus=nuss[iiso]
         rms=rmss[iiso]
         restfreq=restfreqs[iiso]
         nu0=restfreq-(v0/c_light)*restfreq
 
-
+            
+        
         #print("v0, Temp, Sigma_g, vturb",v0, Temp, Sigma_g, vturb)
-        chi2+=intensity_err(nus, nu0, Temp, Sigma_g, vturb, adata, rms,iiso)
+        chi2iso, tau0iso = intensity_err(nus, nu0, Temp, Sigma_g, vturb, adata, rms,iiso)
 
+        if RJTempRegul:
+            if (tau0iso < 0.2):
+                I_peak=adata.max()
+                if (I_peak>0.):
+                    Tb=Tbrightness(I_peak,nu0)
+                    aTmax=Tb/tau0iso # RJ thin approx
+                    Tmaxs.append(aTmax)
+
+        tau0s.append(tau0iso)
+            
+        chi2 += chi2iso
+        
+    if SubSonicRegul:
+        LbdaSubSonicRegul=1E2
+        gamma= 1.4
+        mu=2.3
+        c_s=np.sqrt(gamma*k_B*Temp/(mu*mp)) # cm/s
+        if (vturb>c_s):
+            SSubSonicRegul=( (vturb-c_s)/c_s)**2
+            chi2 += LbdaSubSonicRegul*SSubSonicRegul
+
+    if OpacRegul:
+        LbdaOpacRegul=1.
+        MaxOptiDepth=5.
+        lowesttau0=min(tau0s)
+        if (lowesttau0 > MaxOptiDepth):
+            SOpacRegul=(lowesttau0 - MaxOptiDepth)**2
+            chi2 += LbdaOpacRegul*SOpacRegul
+
+
+    if RJTempRegul:
+        Tmaxs=np.array(Tmaxs)
+        if len(Tmaxs)>1:
+            Tmax = np.min(Tmaxs[(Tmaxs>0.)])
+            LbdaRJTempRegul=1E2
+            print("Tmax ",Tmax,"Temp ",Temp)
+            if ((Tmax >0.) & (Temp>Tmax)):
+                SRJTempRegul=((Temp-Tmax)/Tmax)**2
+                chi2 += LbdaRJTempRegul*SRJTempRegul
+            
     return chi2
 
         
@@ -330,13 +373,14 @@ def parspar(n):
     #T_limits = (0.5*T_init,1.5*T_init)
     #T_limits = (3.,1.5*T_init)
 
+    T_init_factor=2.
     if (T_init > T_min):
-        T_limits = (T_min,10.*T_init)
-        log10T_limits = (np.log10(T_min),np.log10(10.*T_init))
+        T_limits = (T_min,T_init_factor*T_init)
+        log10T_limits = (np.log10(T_min),np.log10(T_init_factor*T_init))
     else:
         T_init=T_min
-        T_limits = (T_min,10.*T_min)
-        log10T_limits = (np.log10(T_min),np.log10(10.*T_min))
+        T_limits = (T_min,T_init_factor*T_min)
+        log10T_limits = (np.log10(T_min),np.log10(T_init_factor*T_min))
         
     if Fix_Temp:
         T_init=T_min
@@ -885,9 +929,13 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False,SubSonicRegulation=False,OpticalDepthRegulation=False,RJTempRegulation=False):
 
-    
+    # RepeatMigrad=False, Repeat Migrad optim after emcee optimn
+    # cubemasks=False, masks for each channels
+    # SubSonicRegulation=False,  v_turb < c_s regularization
+    # OpticalDepthRegulation=False, thinnest tau_0 < 5. regularization
+    # RJTempRegulation=False   attempt at regularizing opt. thin. temperature peaks, does not really work and makes optim much slower. 
     
     global cubos
     global nuss, dnus
@@ -903,7 +951,9 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global T_min
     global vturb_init
     global DoMCMC
-    global NitMCMC    
+    global NitMCMC
+
+    
     DoMCMC=RunMCMC
     NitMCMC=NiterMCMC
 
@@ -916,6 +966,14 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global DoMigradTwice
     DoMigradTwice=RepeatMigrad
 
+
+    global SubSonicRegul
+    global OpacRegul
+    global RJTempRegul
+    SubSonicRegul=SubSonicRegulation
+    OpacRegul=OpticalDepthRegulation
+    RJTempRegul=RJTempRegulation
+    
     T_min=T_minimum
     init_sigmag_modulation=Init_Sigma_g_modul
     
@@ -948,7 +1006,6 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     cubos=[]
     heads=[]
     unitfactors=[]
-    print('Opening FITS images ')
     for ainputcubefile in inputcubefiles:
         cubo, head = loadfitsdata(ainputcubefile)
         pixscl = head['CDELT2'] * 3600.
@@ -1005,7 +1062,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
 
     maskradpixels = int(maxradius / pixscl)
-    print("maxradius ",maxradius," pixscl ", pixscl, "maskradpixels ",maskradpixels)
+    #print("maxradius ",maxradius," pixscl ", pixscl, "maskradpixels ",maskradpixels)
     nx=head['NAXIS1']
     ny=head['NAXIS2']
     ii=np.arange(0,nx)
@@ -1054,7 +1111,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         #    print("molecule_mass ",molecule_mass)
 
 
-        print("using header number",iiso)
+        #print("using header number",iiso)
         ahead=heads[iiso]
         dnu = ahead['CDELT3']
         len_nu = ahead['NAXIS3']
@@ -1075,28 +1132,30 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     
         
     ndim = head['NAXIS1']
-    log10Temperature = np.zeros((ndim,ndim))
-    tau0 = np.zeros((ndim,ndim))
-    log10Sigma_g_im = np.zeros((ndim,ndim))
-    log10Turbvel = np.zeros((ndim,ndim))
-    velo_centroid = np.zeros((ndim,ndim))
-    errmodel = np.zeros((ndim,ndim))
+    mdim = head['NAXIS2']
+    
+    log10Temperature = np.zeros((mdim,ndim))
+    tau0 = np.zeros((mdim,ndim))
+    log10Sigma_g_im = np.zeros((mdim,ndim))
+    log10Turbvel = np.zeros((mdim,ndim))
+    velo_centroid = np.zeros((mdim,ndim))
+    errmodel = np.zeros((mdim,ndim))
     dust = np.zeros((ndim,ndim,cubo.shape[0]))
 
-    errlog10Temperature = np.zeros((ndim,ndim))
-    errlog10Sigma_g_im = np.zeros((ndim,ndim))
-    errlog10Turbvel = np.zeros((ndim,ndim))
-    errvelo_centroid = np.zeros((ndim,ndim))
+    errlog10Temperature = np.zeros((mdim,ndim))
+    errlog10Sigma_g_im = np.zeros((mdim,ndim))
+    errlog10Turbvel = np.zeros((mdim,ndim))
+    errvelo_centroid = np.zeros((mdim,ndim))
 
     if DoMCMC:
-        erruplog10Temperature = np.zeros((ndim,ndim))
-        erruplog10Sigma_g_im = np.zeros((ndim,ndim))
-        erruplog10Turbvel = np.zeros((ndim,ndim))
-        errupvelo_centroid = np.zeros((ndim,ndim))
-        errlolog10Temperature = np.zeros((ndim,ndim))
-        errlolog10Sigma_g_im = np.zeros((ndim,ndim))
-        errlolog10Turbvel = np.zeros((ndim,ndim))
-        errlovelo_centroid = np.zeros((ndim,ndim))
+        erruplog10Temperature = np.zeros((mdim,ndim))
+        erruplog10Sigma_g_im = np.zeros((mdim,ndim))
+        erruplog10Turbvel = np.zeros((mdim,ndim))
+        errupvelo_centroid = np.zeros((mdim,ndim))
+        errlolog10Temperature = np.zeros((mdim,ndim))
+        errlolog10Sigma_g_im = np.zeros((mdim,ndim))
+        errlolog10Turbvel = np.zeros((mdim,ndim))
+        errlovelo_centroid = np.zeros((mdim,ndim))
         
     
     nisos=len(inputcubefiles)
@@ -1105,11 +1164,11 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     isotau0s = []
     for iiso in list(range(nisos)):
         model = np.zeros(cubo.shape)
-        isotau0 = np.zeros((ndim,ndim))
+        isotau0 = np.zeros((mdim,ndim))
         models.append(model)
         isotau0s.append(isotau0)
         
-    mom2 = np.zeros((ndim,ndim))
+    mom2 = np.zeros((mdim,ndim))
     
     
     #pool = Pool(ncores)
@@ -1179,12 +1238,23 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
             
 
     punchout=[]
-    punchout.append({'data':log10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'log10Sigma_g.fits'}) 
-    punchout.append({'data':10**(log10Sigma_g_im),'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'Sigma_g.fits'}) 
-    punchout.append({'data':log10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'log10vturb.fits'}) 
-    punchout.append({'data':10**(log10Turbvel),'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'vturb.fits'}) 
+    punchout.append({'data':log10Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'log10Sigma_g.fits'})
+
+    Sigma_g_im=10**(log10Sigma_g_im)
+    Sigma_g_im[(mask<1.)]=0.
+    
+    punchout.append({'data':Sigma_g_im,'BUNIT':'g/cm2','BTYPE':'MassColumn','outfile':'Sigma_g.fits'}) 
+    punchout.append({'data':log10Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'log10vturb.fits'})
+
+    Turbvel=10**(log10Turbvel)
+    Turbvel[(mask<1.)]=0.
+    punchout.append({'data':Turbvel,'BUNIT':'cm/s','BTYPE':'Velocity','outfile':'vturb.fits'})
+
     punchout.append({'data':log10Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'log10temperature.fits'}) 
-    punchout.append({'data':10**(log10Temperature),'BUNIT':'K','BTYPE':'Temperature','outfile':'temperature.fits'}) 
+
+    Temperature=10**log10Temperature
+    Temperature[(mask<1.)]=0.
+    punchout.append({'data':Temperature,'BUNIT':'K','BTYPE':'Temperature','outfile':'temperature.fits'}) 
     for iiso in list(range(nisos)):
         punchout.append({'data':isotau0s[iiso],'BUNIT':'N/A','BTYPE':'OpticalDepth','outfile':'tau0_'+isonames[iiso]+'.fits'}) 
 
