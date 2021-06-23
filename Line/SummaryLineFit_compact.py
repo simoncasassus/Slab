@@ -13,7 +13,7 @@ import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from  scipy.signal import medfilt2d
 
-include_path='/Users/simon/common/python/include/'
+include_path='/home/simon/common/python/include/'
 sys.path.append(include_path)
 import ImUtils.Resamp as Resamp
 import ImUtils.Cube2Im as Cube2Im
@@ -33,7 +33,7 @@ def colorbar(Mappable, Orientation='horizontal',cbfmt="%.1e"):
             format=cbfmt
     )
 
-def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_errormap=False, filename_fiterrormap=False,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=False,DoGreyCont=False,vsyst=0.,nplotsx=2,nplotsy=2,SymmetricRange=False,MedianvalRange=False,DoCB=True,cmap='RdBu_r',MedRms=True,Zoom=True,scaleim=1.,cbfmt="%.1e",cbunits='',DoInterestingRegion=False):
+def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_errormap=False, filename_fiterrormap=False,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=False,DoGreyCont=False,vsyst=0.,nplotsx=2,nplotsy=2,SymmetricRange=False,MedianvalRange=False,DoCB=True,cmap='RdBu_r',MedRms=True,Zoom=True,scaleim=1.,cbfmt="%.1e",cbunits='',DoInterestingRegion=False,side=1.2):
 
         print( "nplotsy nplotsx ", nplotsy, nplotsx, iplotpos)
         ax = plt.subplot(nplotsy, nplotsx, iplotpos)
@@ -70,7 +70,7 @@ def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_erro
 
 
         if Zoom:
-                side=1.2
+                
                 if (side > side0):
                         sys.exit("side too large")
 
@@ -153,7 +153,7 @@ def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_erro
             print("number of pixels masked:",np.sum(immask))
 
         else:
-            mask=np.where((isfinite(subim_grey)) & (subim_grey > 0.))
+            mask=np.where((isfinite(subim_grey)) & (subim_grey > 0.)  & (subim_grey > np.min(subim_grey)))
             
         # print("viewing fiterrormap immask")
         # Vtools.View(immask)
@@ -186,12 +186,13 @@ def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_erro
 
 
         if SymmetricRange:
-                range2=vsyst+SymmetricRange
-                range1=vsyst-SymmetricRange
-                # subim_grey[np.where(subim_grey < range1)]=vsyst
-                # subim_grey[np.where(subim_grey > range2)]=vsyst
-                clevs = [range1,0.,range2]
-                clabels=['%.0f' % (clevs[0]),'','%.0f' % (clevs[2])]
+            range2=vsyst+SymmetricRange
+            range1=vsyst-SymmetricRange
+            subim_grey[(np.fabs(subim_grey) == 0.)]=vsyst 
+            # subim_grey[np.where(subim_grey < range1)]=vsyst
+            # subim_grey[np.where(subim_grey > range2)]=vsyst
+            clevs = [range1,0.,range2]
+            clabels=['%.0f' % (clevs[0]),'','%.0f' % (clevs[2])]
         elif MedianvalRange:
                 typicalvalue=np.median(subim_grey[mask])
 
@@ -316,7 +317,7 @@ def addimage(iplotpos,label,atitle,filename_grey,filename_contours,filename_erro
     
                 
 
-def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True,Zoom=False,RunMCMC=False,velorange=4.):
+def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True,Zoom=False,RunMCMC=False,velorange=4.,side=1.2,fix_T=False,SigmaScale=[1.,''],cmap_Sigmag='gist_earth_r'):
 
         # global nplotsx
         # global nplotsy
@@ -343,22 +344,32 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
         # cmaps = ['magma', 'inferno', 'plasma', 'viridis', 'bone', 'afmhot', 'gist_heat', 'CMRmap', 'gnuplot', 'Blues_r', 'Purples_r', 'ocean', 'hot', 'seismic_r']
         gamma=1.0
 
-        if (fix_vturb):
-            figsize=(15.,5.)
+        if ( ('fix_t' in workdir.lower()) or   ('fixt' in workdir.lower()) ):
+            fix_T=True
+
+        if (fix_vturb or fix_T):
+            figsize=(12.,5.)
             nplotsx=3
             nplotsy=1
         else:
-            figsize=(13., 3.5)
+            figsize=(15., 5.)
             nplotsx=4
             nplotsy=1
 
         if os.path.isfile(workdir+'errtemperature.fits'):
             RunMCMC=True
-
+            
         if RunMCMC:
-            figsize=(15.,10.)
-            nplotsx=4
-            nplotsy=2
+            if fix_T:
+                figsize=(12.,10.)
+                nplotsx=3
+                nplotsy=2
+            else:
+                figsize=(15.,10.)
+                nplotsx=4
+                nplotsy=2
+
+        labels=['a','b','c','d','e','f','g','h']
         
         # (fig0, axes) = plt.subplots(nrows=nplotsy,ncols=nplotsx,figsize=figsize)
 
@@ -374,98 +385,103 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
 
         cmap='ocean_r'
         #cmap='magma_r'
-        cmap_Sigmag='gist_earth_r'
-        #cmap_Sigmag='RdGy_r'
-        cmap_Sigmag='ocean_r'
-        cmap_vturb='gist_yarg'
         
+        #cmap_Sigmag='RdGy_r'
+        #cmap_Sigmag='ocean_r'
+        cmap_vturb='gist_yarg'
+        ilabel=0
         atitle=r'$\Sigma_g$'
-        label='a' 
+        label=labels[ilabel] 
         filename_contours=False
         filename_grey=workdir+'Sigma_g.fits'
         filename_errormap=False
         iplotpos += 1
         #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=True,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=False,DoCB=True, cmap=cmap_Sigmag,cbfmt='%.2f',cbunits=r'$\rm{g}\,\rm{cm}^{-2}$',Zoom=Zoom,DoInterestingRegion=False)
+        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=True,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=False,DoCB=True, cmap=cmap_Sigmag,cbfmt='%.2f',cbunits=r' '+SigmaScale[1]+r'$\rm{g}\,\rm{cm}^{-2}$',Zoom=Zoom,DoInterestingRegion=False,side=side,scaleim=SigmaScale[0])
+        ilabel+=1
 
-
-        atitle=r'$T$'
-        label='b'
-        filename_contours=False
-        filename_grey=workdir+'temperature.fits'
-        filename_errormap=False
-        iplotpos += 1
-        #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap='YlOrBr',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{K}$',Zoom=Zoom,DoInterestingRegion=False)
+        if not fix_T:
+            atitle=r'$T$'
+            label=labels[ilabel] 
+            ilabel+=1
+            filename_contours=False
+            filename_grey=workdir+'temperature.fits'
+            filename_errormap=False
+            iplotpos += 1
+            #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
+            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=False,DoCB=True, cmap='YlOrBr',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{K}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
 
 
         atitle=r'$v^\circ$'
-        label='c'
+        label=labels[ilabel]
+        ilabel+=1
         filename_contours=False
         filename_grey=workdir+'velocentroid.fits'
         filename_errormap=False
         iplotpos += 1
         #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=velorange,DoCB=True, cmap='RdBu_r',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{km}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False)
-
+        (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=velorange,DoCB=True, cmap='RdBu_r',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{km}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
+                
 
         
 
         if (not fix_vturb):
             atitle=r'$v_\mathrm{turb}$'
-            label='d'
+            label=labels[ilabel]
+            ilabel+=1
             filename_contours='/home/simon/common/ppdisks/HD135344B/data/SPHERE/IRDAP/HD135344B_2016-06-30_Q_phi_star_pol_subtr_whdr.fits'
-            filename_controus=False
+            filename_contours=False
             filename_grey=workdir+'vturb.fits'
             filename_errormap=False
             iplotpos += 1
             #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap=cmap_vturb,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False)
+            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=False,DoCB=True, cmap=cmap_vturb,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
 
         if RunMCMC:
             
 
             atitle=r'$\sigma(\Sigma_g)$'
-            label='e' 
+            label=labels[ilabel]
+            ilabel+=1
             filename_contours=False
             filename_grey=workdir+'errSigma_g.fits'
             filename_errormap=False
             iplotpos += 1
             #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=True,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=True,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=False,DoCB=True, cmap=cmap_Sigmag,cbfmt='%.2f',cbunits=r'$\rm{g}\,\rm{cm}^{-2}$',Zoom=Zoom,DoInterestingRegion=False)
+            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=True,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap=cmap_Sigmag,cbfmt='%.2f',cbunits=r' '+SigmaScale[1]+r'$\rm{g}\,\rm{cm}^{-2}$',Zoom=Zoom,DoInterestingRegion=False,side=side,scaleim=SigmaScale[0])
 
-
-            atitle=r'$\sigma(T)$'
-            label='f'
-            filename_contours=False
-            filename_grey=workdir+'errtemperature.fits'
-            filename_errormap=False
-            iplotpos += 1
-            #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap='YlOrBr',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{K}$',Zoom=Zoom,DoInterestingRegion=False)
-
+            if (not fix_T):
+                atitle=r'$\sigma(T)$'
+                label=labels[ilabel]
+                ilabel+=1
+                filename_contours=False
+                filename_grey=workdir+'errtemperature.fits'
+                filename_errormap=False
+                iplotpos += 1
+                #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
+                (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap='YlOrBr',scaleim=1.,cbfmt='%.1f',cbunits=r'$\rm{K}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
 
             atitle=r'$\sigma(v^\circ)$'
-            label='g'
+            label=labels[ilabel]
+            ilabel+=1
             filename_contours=False
             filename_grey=workdir+'errvelocentroid.fits'
             filename_errormap=False
             iplotpos += 1
             #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=5.,DoCB=True, cmap='Greys',scaleim=1E3,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False)
-
-
+            (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=5.,DoCB=True, cmap='Greys',scaleim=1E3,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
 
 
             if (not fix_vturb):
                 atitle=r'$\sigma(v_\mathrm{turb})$'
-                label='h'
+                label=labels[ilabel]
+                ilabel+=1
                 filename_contours=False
                 filename_grey=workdir+'errvturb.fits'
                 filename_errormap=False
                 iplotpos += 1
                 #addimage(iplotpos,label,atitle,filename_grey,filename_contours,VisibleXaxis=False,VisibleYaxis=False,DoBeamEllipse=False,DoGreyCont=True,Clevs=[vsyst-vrange,vsyst,vsyst+vrange])
-                (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap=cmap_vturb,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False)
+                (clevs,clabels)=addimage(iplotpos,label,atitle,filename_grey,filename_contours=filename_contours,filename_errormap=filename_errormap, filename_fiterrormap=filename_fiterrormap,VisibleXaxis=True,VisibleYaxis=False,DoBeamEllipse=True,DoGreyCont=False,vsyst=vsyst,nplotsx=nplotsx,nplotsy=nplotsy,SymmetricRange=False,MedianvalRange=10.,DoCB=True, cmap=cmap_vturb,scaleim=1E-2,cbfmt='%.1f',cbunits=r'$\rm{m}\,\rm{s}^{-1}$',Zoom=Zoom,DoInterestingRegion=False,side=side)
 
 
                 
