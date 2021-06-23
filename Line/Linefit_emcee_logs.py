@@ -243,7 +243,7 @@ def master_chi2(nuss, v0, log10Temp, log10Sigma_g, log10vturb, datas, rmss):
 
     if OpacRegul:
         LbdaOpacRegul=1.
-        MaxOptiDepth=5.
+        
         lowesttau0=min(tau0s)
         if (lowesttau0 > MaxOptiDepth):
             SOpacRegul=(lowesttau0 - MaxOptiDepth)**2
@@ -541,32 +541,67 @@ def parspar(n):
     fit = [m.values['log10Temp'], m.values['log10vturb'], m.values['log10Sigma_g'], m.values['v0']]
 
     if ViewIndividualFits:
-        print("best fit",fit)
+        print("best migrad fit",fit)
         
     if DoMCMC:
         names= ['log10Temp', 'log10vturb','log10Sigma_g','v0']
+        allparams={}
+        for iname,aname in enumerate(names):
+            allparams[aname]=fit[iname]
+        allparams0=allparams.copy()
+        
+        mcmc_names=names.copy()
         if Fix_vturb:
-            m.limits['log10vturb']=(np.log10(v_turb_init),np.log10(v_turb_init))
+            mcmc_names.remove('log10vturb')
+        if Fix_Temp:
+            mcmc_names.remove('log10Temp')
+
+        mcmc_init_pos=[]
+        mcmc_bnds=[]
+        for iname,aname in enumerate(mcmc_names):
+            mcmc_init_pos.append(allparams[aname])
+            mcmc_bnds.append(m.limits[aname])
             
-        bnds=[]
-        for aname in names:
-            Debug=False
-            if ViewIndividualFits:
-                print("adding limits : ",aname,m.limits[aname])
-                Debug=True
-            bnds.append(m.limits[aname])
 
-        result_mcmc=exec_emcee(fit,names,bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(3.*NitMCMC/4),n_cores=1,Debug=Debug,lnprobargs=[bnds,nusmaskeds,datamaskeds,rmss,names])
+        #bnds=[]
+        #bnds=mcmc_bnds
+        #for iname,aname in enumerate(names):
+        #    Debug=False
+        #    if ViewIndividualFits:
+        #        #print("adding limits : ",aname,m.limits[aname])
+        #        print("adding limits : ",aname,mcmc_bnds[iname])
+        #        Debug=True
+        #    #bnds.append(m.limits[aname])
+        #    bnds.append(m.limits[aname])
+        
 
+        Debug=False
+        if ViewIndividualFits:
+            Debug=True
+            for iname,aname in enumerate(mcmc_names):
+                print("adding limits : ",aname,mcmc_bnds[iname])
 
         
-        for iname,aname in enumerate(names):
+        result_mcmc=exec_emcee(mcmc_init_pos,mcmc_names,mcmc_bnds,Nit=NitMCMC,nwalkers=30,burn_in=int(3.*NitMCMC/4),n_cores=1,Debug=Debug,lnprobargs=[mcmc_bnds,nusmaskeds,datamaskeds,rmss,mcmc_names,allparams])
+
+        
+        allparams_werrors={}
+        for iname,aname in enumerate(mcmc_names):
             aresult_mcmc=result_mcmc[0][iname]
             if ViewIndividualFits:
-                print(aname," ML :",fit[iname]," ->-> ",aresult_mcmc[0])
-            fit[iname]=aresult_mcmc[0]
-            m.values[aname]=aresult_mcmc[0]
+                print(aname," ML :",allparams0[aname]," ->-> ",aresult_mcmc[0])
+            allparams[aname]=aresult_mcmc[0]
+            allparams_werrors[aname]=aresult_mcmc
             
+        result_mcmc_all=[]
+        for iname,aname in enumerate(names):
+            fit[iname]=allparams[aname]
+            m.values[aname]=allparams[aname]
+            if aname in mcmc_names:
+                result_mcmc_all.append(allparams_werrors[aname])
+            else:
+                result_mcmc_all.append([allparams[aname],0.,0.])
+        result_mcmc_all=[result_mcmc_all]
 
         
         if DoMigradTwice:
@@ -620,7 +655,7 @@ def parspar(n):
     #return [j,i,fit, model[j,i], tau0[j,i]]
     passout=[j,i,fit, errmodelij, isomodelsij, isotaus0ij]
     if DoMCMC:
-        passout.append(result_mcmc)
+        passout.append(result_mcmc_all)
     #pbar.update(ncores)
     return passout
 
@@ -746,11 +781,20 @@ def lnprior(names,theta,bnds):
 #        return -np.inf
 #
 
-def lnprob(theta,bnds,nusmaskeds,datamaskeds,rmss,names):
-    lp = lnprior(names,theta,bnds)
+def lnprob(theta,bnds,nusmaskeds,datamaskeds,rmss,mcmcnames,allparams):
+    lp = lnprior(mcmcnames,theta,bnds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + lnlike(theta,nusmaskeds,datamaskeds,rmss)
+
+    
+    for iname,aname in enumerate(mcmcnames):
+        allparams[aname]=theta[iname]
+
+    alltheta=np.zeros(len(allparams))
+    for itheta,aname in enumerate(allparams):
+        alltheta[itheta]=allparams[aname]
+        
+    return lp + lnlike(alltheta,nusmaskeds,datamaskeds,rmss)
 
 
 def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n_cores=1,workdir='',lnprobargs=[]):
@@ -929,12 +973,13 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False,SubSonicRegulation=False,OpticalDepthRegulation=False,RJTempRegulation=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False,SubSonicRegulation=False,OpticalDepthRegulation=False,MaxOpticalDepth=5.,RJTempRegulation=False):
 
     # RepeatMigrad=False, Repeat Migrad optim after emcee optimn
     # cubemasks=False, masks for each channels
     # SubSonicRegulation=False,  v_turb < c_s regularization
     # OpticalDepthRegulation=False, thinnest tau_0 < 5. regularization
+    # MaxOpticalDepth=5., threshold value for Opti.Depth. regularization, applied to thinnest line. 
     # RJTempRegulation=False   attempt at regularizing opt. thin. temperature peaks, does not really work and makes optim much slower. 
     
     global cubos
@@ -969,9 +1014,11 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
 
     global SubSonicRegul
     global OpacRegul
+    global MaxOptiDepth
     global RJTempRegul
     SubSonicRegul=SubSonicRegulation
     OpacRegul=OpticalDepthRegulation
+    MaxOptiDepth=MaxOpticalDepth
     RJTempRegul=RJTempRegulation
     
     T_min=T_minimum
