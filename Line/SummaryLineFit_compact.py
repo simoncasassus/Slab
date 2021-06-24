@@ -347,6 +347,9 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
         if ( ('fix_t' in workdir.lower()) or   ('fixt' in workdir.lower()) ):
             fix_T=True
 
+        if ( ('fix_vturb' in workdir.lower()) or   ('fixvturb' in workdir.lower()) ):
+            fix_vturb=True
+
         if (fix_vturb or fix_T):
             figsize=(12.,5.)
             nplotsx=3
@@ -360,7 +363,7 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
             RunMCMC=True
             
         if RunMCMC:
-            if fix_T:
+            if (fix_vturb or fix_T):
                 figsize=(12.,10.)
                 nplotsx=3
                 nplotsy=2
