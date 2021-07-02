@@ -973,7 +973,7 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False,SubSonicRegulation=False,OpticalDepthRegulation=False,MaxOpticalDepth=5.,RJTempRegulation=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,vturbulence_init=-1,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False,SubSonicRegulation=False,OpticalDepthRegulation=False,MaxOpticalDepth=5.,RJTempRegulation=False):
 
     # RepeatMigrad=False, Repeat Migrad optim after emcee optimn
     # cubemasks=False, masks for each channels
@@ -981,6 +981,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     # OpticalDepthRegulation=False, thinnest tau_0 < 5. regularization
     # MaxOpticalDepth=5., threshold value for Opti.Depth. regularization, applied to thinnest line. 
     # RJTempRegulation=False   attempt at regularizing opt. thin. temperature peaks, does not really work and makes optim much slower. 
+    # vturbulence_init=-1 , if < 0 then set init vturb to channel width, if > 0 then provide value for vturb_init in cm/s
     
     global cubos
     global nuss, dnus
@@ -1171,8 +1172,10 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         dnus.append(dnu)
         dvels.append(dvel)
 
-    vturb_init=min(dvels)*1E5 # init vturb in cm/s
-        
+    if vturbulence_init <0 :
+        vturb_init=min(dvels)*1E5 # init vturb in cm/s
+    else:
+        vturb_init=vturbulence_init
 
     print("Molecule names:",isonames)
     print("Molecule fractions:",f_abunds)
