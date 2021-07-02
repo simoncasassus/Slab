@@ -954,14 +954,17 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
 
         import corner
 
+        chains[:,-1] *= 1E-5
+        #bestparams[-1] *= 1E-5
+        names=[r'$\log_{10}\left(\frac{T_b}{K}\right)$',r'$\log_{10}\left(\frac{v_{\rm turb}}{ {\rm cm\,s}^{-1}}\right)$',r'$\log_{10}\left(\frac{\Sigma_g}{ {\rm g\,cm}^{-2}}\right)$', r'$\frac{v_\circ}{ {\rm km s}^{-1}}$']
         fig=corner.corner(chains,
                           labels=names,
                           quantiles=[0.16, 0.5,0.84],
                           bins=20, truths=bestparams,
                           levels=[0.68, 0.95, 0.997],
                           show_titles=True,
-                          title_fmt=".3f",
-                          title_kwards={"fontsize": 10}) #, smooth=1.0
+                          title_fmt=".2f",
+                          title_kwards={"fontsize": 16}) #, smooth=1.0
 
 
 
