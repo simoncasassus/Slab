@@ -276,6 +276,7 @@ def parspar(n):
     datamaxs=[]
     weightss=[]
     datamaskeds=[]
+    dofs=0
     nusmaskeds=[]
     
     for iiso,acubo in enumerate(cubos):
@@ -322,6 +323,8 @@ def parspar(n):
 
         mask=(weights > 0.)
         datamasked=data[mask]
+        dofs+=len(datamasked)
+        
         datamaskeds.append(datamasked)
         
         datamax = datamasked.max()
@@ -633,6 +636,7 @@ def parspar(n):
 
     if ViewIndividualFits:
         params=m.params
+        print("Reduced chi2 :",errmod,dofs,errmod/dofs)
         print("Best fit:")
         #for aparam in m.values.keys():
         for iparam,aparam in enumerate(params):
@@ -653,7 +657,7 @@ def parspar(n):
             Vtools.Spec([specobs,specmod])
         
     #return [j,i,fit, model[j,i], tau0[j,i]]
-    passout=[j,i,fit, errmodelij, isomodelsij, isotaus0ij]
+    passout=[j,i,fit, errmodelij, isomodelsij, isotaus0ij,dofs]
     if DoMCMC:
         passout.append(result_mcmc_all)
     #pbar.update(ncores)
@@ -1193,6 +1197,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     log10Turbvel = np.zeros((mdim,ndim))
     velo_centroid = np.zeros((mdim,ndim))
     errmodel = np.zeros((mdim,ndim))
+    redchi2 = np.zeros((mdim,ndim))
     dust = np.zeros((ndim,ndim,cubo.shape[0]))
 
     errlog10Temperature = np.zeros((mdim,ndim))
@@ -1252,7 +1257,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         log10Turbvel[j,i] = fit[1]
         velo_centroid[j,i]= fit[3]*1E-5
 
-                     
+        dofs=ls[6]             
         rettau0s  = ls[5]
         retmodels = ls[4]
         for iiso in list(range(nisos)):
@@ -1260,6 +1265,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
             isotau0s[iiso][j,i]=rettau0s[iiso]
                   
         errmodel[j,i] = ls[3]
+        redchi2[j,i] = ls[3]/dofs
 
 
         if DoMCMC:
@@ -1338,7 +1344,8 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
         punchout.append({'data':errlovelo_centroid,'BUNIT':'km/s','BTYPE':'Velocity','outfile':'errlovelocentroid.fits'})
 
     
-    punchout.append({'data':errmodel,'BUNIT':'erg/s/cm2/Hz/sr','BTYPE':'Intensity','outfile':'fiterror.fits'}) 
+    punchout.append({'data':errmodel,'BUNIT':'','BTYPE':'Chi2','outfile':'fiterror.fits'}) 
+    punchout.append({'data':redchi2,'BUNIT':'','BTYPE':'Red. Chi2','outfile':'redchi2.fits'}) 
     
     for apunchout in punchout:
         dataout=np.nan_to_num(apunchout['data'])
