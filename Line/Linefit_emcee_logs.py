@@ -373,7 +373,6 @@ def parspar(n):
     #T_limits = (0.5*T_init,1.5*T_init)
     #T_limits = (3.,1.5*T_init)
 
-    T_init_factor=2.
     if (T_init > T_min):
         T_limits = (T_min,T_init_factor*T_init)
         log10T_limits = (np.log10(T_min),np.log10(T_init_factor*T_init))
@@ -530,7 +529,7 @@ def parspar(n):
         # sys.exit('FIXED VTURB')
     else:
         #m.limits['vturb']=(0.0, 2E4)
-        m.limits['log10vturb']=(np.log10(1E2), np.log10(5E5))
+        m.limits['log10vturb']=(np.log10(1E2), np.log10(1E6))
         #m.limits['vturb']=(0.0, 4E4)
 
     m.errordef=Minuit.LEAST_SQUARES
@@ -976,7 +975,7 @@ def exec_emcee(result_ml,names,bnds,Nit=100,nwalkers=30,burn_in=20,Debug=False,n
     return [mcmc_results]
 
     
-def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,vturbulence_init=-1,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False,SubSonicRegulation=False,OpticalDepthRegulation=False,MaxOpticalDepth=5.,RJTempRegulation=False):
+def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=['LAMDAmoldatafiles/molecule_12c16o.inp',],J_up=2,ncores=30,outputdir='./output_iminuit_fixvturb/',ViewIndividualSpectra=False,Fix_vturbulence=False,vturbulence_init=-1,MaskChannels=False,Init_Sigma_g_modul=1.0,T_minimum=3.,T_init_factor_Tb=2.,Fix_temperature=False,StoreModels=True,NiterMCMC=200,RunMCMC=False,storeCGS=False,PunchErrorMaps=False,CleanWorkDir=True,RepeatMigrad=False,cubemasks=False,SubSonicRegulation=False,OpticalDepthRegulation=False,MaxOpticalDepth=5.,RJTempRegulation=False):
 
     # RepeatMigrad=False, Repeat Migrad optim after emcee optimn
     # cubemasks=False, masks for each channels
@@ -998,6 +997,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     global BadChannels
     global init_sigmag_modulation
     global T_min
+    global T_init_factor
     global vturb_init
     global DoMCMC
     global NitMCMC
@@ -1026,6 +1026,7 @@ def exec_optim(inputcubefiles,InputDataUnits='head',maxradius=0.5,moldatafiles=[
     RJTempRegul=RJTempRegulation
     
     T_min=T_minimum
+    T_init_factor=T_init_factor_Tb
     init_sigmag_modulation=Init_Sigma_g_modul
     
     BadChannels=MaskChannels
