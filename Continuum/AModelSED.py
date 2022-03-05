@@ -4,13 +4,15 @@ import re
 import numpy as np
 import matplotlib
 
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import cmath as cma
-# from time import time,gmtime, strftime
-
+from time import time
 from astropy import constants as const
+
+# matplotlib.use('Agg')
+
+from numba import jit
 
 c_MKS = const.c.value  # m/s
 
@@ -35,7 +37,7 @@ def Plot_Opct(Opct, outputdir):
     plt.savefig(outputdir + fileout, bbox_inches='tight')
 
 
-def Plot_Inu(nus, Inus, overplots=[], outputdir=''):
+def Plot_Inu(nus, Inus, overplots=[], outputdir='', fileout='fig_Inu.pdf'):
     plt.figure(figsize=(10, 4))
     for iover, aover in enumerate(overplots):
         anus = aover[0]
@@ -51,7 +53,7 @@ def Plot_Inu(nus, Inus, overplots=[], outputdir=''):
     plt.yscale('log')
     plt.legend()
     plt.grid()
-    fileout = outputdir + 'fig_Inu.pdf'
+    fileout = outputdir + fileout
     plt.savefig(fileout, bbox_inches='tight')
 
 
@@ -92,6 +94,76 @@ def f_kappa_abs(nf, kf, a, lam, rho, f):
     #print x, lam
     kappa0 = 3. / (4. * a * rho)
     return kappa0 * Qabs
+
+
+# Opacity function
+
+
+@jit(nopython=True)
+def f_kappa_abs_numba(nf, kf, a, lam, rho, f):
+    # Kataoka+2014
+    lamc = 2. * np.pi * a
+
+    m = nf + kf * 1.j
+    eps0 = m**2.0
+    F = (eps0 - 1.) / (eps0 + 2.)
+    eps_ef = (1. + 2. * f * F) / (1. - f * F)
+    mef = cma.sqrt(eps_ef)
+    nef = mef.real
+    kef = mef.imag
+
+    x = lamc / lam
+    if x < 1.0:
+        Qabs = 24. * nef * kef * x / ((nef**2. - kef**2. + 2.)**2. +
+                                      (2. * nef * kef)**2.)
+    else:
+        Qabs2 = 8. * kef * x * (nef**3. - (nef**2 - 1.)**1.5) / (3. * nef)
+        Qabs3 = 1. - 0.1 * f
+        Qabs = min(Qabs2, Qabs3)
+
+    kappa0 = 3. / (4. * a * rho)
+    return kappa0 * Qabs
+
+
+@jit(nopython=True)
+def f_kappa_scat_numba(nf, kf, a, lam, rho, f):
+    # Kataoka+2014
+    lamc = 2. * np.pi * a
+
+    m = nf + kf * 1.j
+    eps0 = m**2.0
+    F = (eps0 - 1.) / (eps0 + 2.)
+    eps_ef = (1. + 2. * f * F) / (1. - f * F)
+    mef = cma.sqrt(eps_ef)
+    nef = mef.real
+    kef = mef.imag
+
+    x = lamc / lam
+    Qscat1 = (32. / 27.) * (x**4.) * ((nef - 1.)**2. + kef**2.)
+    if x < 1.0:
+        Qscat = Qscat1
+    else:  #kef*x<3./8.:
+        Qscat2 = Qscat1 / (x**2.)
+        Qscat3 = 1. + 0.1 * f
+        Qscat = min(Qscat2, Qscat3)
+    #print x, lam
+    kappa0 = 3. / (4. * a * rho)
+    return kappa0 * Qscat
+
+
+@jit(nopython=True)
+def get_kappa_as_numba_kernel(nlambdas, lambdas, nfs, kfs, rhoi, N_asizes,
+                              a_sizes, kappa_as_abs, kappa_as_scat, f_grain):
+
+    for j in range(nlambdas):
+        for i_asize in range(N_asizes):
+            a_asize = a_sizes[i_asize]
+            kappa_as_abs[i_asize,
+                         j] = f_kappa_abs_numba(nfs[j], kfs[j], a_asize,
+                                                lambdas[j], rhoi, f_grain)
+            kappa_as_scat[i_asize,
+                          j] = f_kappa_scat_numba(nfs[j], kfs[j], a_asize,
+                                                  lambdas[j], rhoi, f_grain)
 
 
 def f_kappa_scat(nf, kf, a, lam, rho, f):
@@ -197,10 +269,12 @@ class MSED(Setup):
             rho0=2.77,  # g/cm3
             N_asizes=40,
             nus=[],
+            ExecTimeReport=False,
+            GoNumba=False,
             ######################################################################
             Sigma_d=0,
             a_sizes=[],
-            Sigma_a=[],
+            Sigma_as=[],
             lambdas=[],
             N_freqs=0,
             kappa_as_abs=None,
@@ -221,11 +295,16 @@ class MSED(Setup):
 
         self.__dict__.update(ASetup.__dict__)
 
-        self.N_freqs = len(nus)
+    def prep(self):
+        self.N_freqs = len(self.nus)
         self.Sigma_d = self.Sigma_g / self.gtod_ratio
         self.a_sizes = np.logspace(np.log10(self.amin), np.log10(self.amax),
                                    self.N_asizes)
 
+    def copy(self, AnotherSED):
+        self.__dict__.update(AnotherSED.__dict__)
+
+    def get_Sigma_as(self):
         fas = np.zeros(
             self.N_asizes)  # Surface density for different dust sizes
         for i in range(self.N_asizes):
@@ -236,7 +315,7 @@ class MSED(Setup):
                                            4.) - self.a_sizes[i - 1]**(
                                                self.q_dustexpo + 4.)
 
-        self.Sigma_a = fas * self.Sigma_d / np.sum(fas)
+        self.Sigma_as = fas * self.Sigma_d / np.sum(fas)
 
         self.lambdas = 1E2 * c_MKS / self.nus  # wavelengths in cm
 
@@ -248,8 +327,8 @@ class MSED(Setup):
             (self.N_asizes, self.N_freqs
              ))  # opacities for different grain sizes and wavelengths
 
+        rhoi = self.rho0 * self.f_grain
         for i_asize, a_asize in enumerate(self.a_sizes):
-            rhoi = self.rho0 * self.f_grain
             for j in range(len(self.lambdas)):
                 kappa_as_abs[i_asize,
                              j] = f_kappa_abs(self.nf, self.kf, a_asize,
@@ -259,6 +338,30 @@ class MSED(Setup):
                               j] = f_kappa_scat(self.nf, self.kf, a_asize,
                                                 self.lambdas[j], rhoi,
                                                 self.f_grain)
+        self.kappa_as_abs = kappa_as_abs
+        self.kappa_as_scat = kappa_as_scat
+
+    def get_kappa_as_numba(self):
+
+        kappa_as_abs = np.zeros(
+            (self.N_asizes, self.N_freqs
+             ))  # opacities for different grain sizes and wavelengths
+        kappa_as_scat = np.zeros(
+            (self.N_asizes, self.N_freqs
+             ))  # opacities for different grain sizes and wavelengths
+        rhoi = self.rho0 * self.f_grain
+
+        #lam = self.lambdas[j]
+        #nf0 = self.nf(lam * 1.0e4)
+        #kf0 = self.kf(lam * 1.0e4)
+        lambdas = self.lambdas
+        nfs = self.nf(lambdas * 1.0e4)
+        kfs = self.kf(lambdas * 1.0e4)
+
+        get_kappa_as_numba_kernel(len(lambdas), lambdas, nfs, kfs, rhoi,
+                                  self.N_asizes, self.a_sizes, kappa_as_abs,
+                                  kappa_as_scat, self.f_grain)
+
         self.kappa_as_abs = kappa_as_abs
         self.kappa_as_scat = kappa_as_scat
 
@@ -273,9 +376,9 @@ class MSED(Setup):
         epsilon_nu = np.zeros(self.N_freqs)
 
         for ifreq in range(self.N_freqs):
-            tau_abs[ifreq] = np.sum(self.Sigma_a[:] *
+            tau_abs[ifreq] = np.sum(self.Sigma_as[:] *
                                     (self.kappa_as_abs[:, ifreq]))
-            tau_scat[ifreq] = np.sum(self.Sigma_a[:] *
+            tau_scat[ifreq] = np.sum(self.Sigma_as[:] *
                                      (self.kappa_as_scat[:, ifreq]))
             tau[ifreq] = tau_scat[ifreq] + tau_abs[ifreq]
             kappa_abs[ifreq] = tau_abs[ifreq] / self.Sigma_g
@@ -304,6 +407,24 @@ class MSED(Setup):
             self.tau, self.epsilon_nu)
 
         self.Inus = Inus
+
+    def calcul(self):
+        self.prep()
+        self.get_Sigma_as()
+        if self.ExecTimeReport:
+            time_1 = time()
+        if self.GoNumba:
+            self.get_kappa_as_numba()
+        else:
+            self.get_kappa_as()           
+        if self.ExecTimeReport:
+            time_2 = time()
+            print("time for get_kappa_as :", time_2 - time_1, " s")
+        self.get_taus_and_kappas()
+        if self.ExecTimeReport:
+            time_3 = time()
+            print("time for get_taus_and_kappas :", time_3 - time_2, " s")
+        self.get_Inus()
 
     def get_Plot(self):
         # omega_beam = np.pi * (0.05 * np.pi / (180. * 3600.))**2 # Baobab's brick

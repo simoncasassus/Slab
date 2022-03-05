@@ -27,7 +27,7 @@ ZSetup = AModelSED.Setup(
     GenFigs=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
-    outputdir='./output_dev/')
+    outputdir='./output_dev_numba/')
 
 #ZSetup.prep()
 #ZSetup.load_Opct()
@@ -49,9 +49,11 @@ ZSED = AModelSED.MSED(
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=40,
-    nus=nus)
+    nus=nus,
+    GoNumba=True)
 
-ZSED.get_kappa_as()
-ZSED.get_taus_and_kappas()
-ZSED.get_Inus()
+for iter in range(100):
+    print("iter",iter)
+    ZSED.calcul()
+    
 ZSED.get_Plot()

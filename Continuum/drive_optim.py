@@ -27,7 +27,8 @@ ZSetup = AModelSED.Setup(
     GenFigs=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
-    outputdir='./output_dev_optim/')
+    #outputdir='./output_dev_optim/')
+    outputdir='./output_dev_optim_walphas/')
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 
@@ -38,42 +39,36 @@ ZSED = AModelSED.MSED(
     f_grain=1.,  # grain filling factor
     amin=1E-3,  # cm
     amax=1.,  # cm, maximum grain size
-    Sigma_g=0.5,  # g/cm2
+    Sigma_g=50.,  # g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
-    N_asizes=40,
+    N_asizes=400,
+    GoNumba=True,
     nus=obsfreqs)
 
-ZSED.get_kappa_as()
-ZSED.get_taus_and_kappas()
-ZSED.get_Inus()
+ZSED.calcul()
+
+obsInus = ZSED.Inus.copy()
+fluxcal_accuracy=0.1
+AddNoise = False
+if AddNoise:
+    for ifreq in range(len(obsInus)):
+        obsInus[ifreq] += np.random.normal(0., obsInus[ifreq] * fluxcal_accuracy, 1)
 
 save_mockdata = np.zeros((len(obsfreqs), 3))
 save_mockdata[:, 0] = obsfreqs
-save_mockdata[:, 1] = ZSED.Inus
-save_mockdata[:, 2] = ZSED.Inus * 0.1
+save_mockdata[:, 1] = obsInus
+save_mockdata[:, 2] = ZSED.Inus * fluxcal_accuracy
 
 np.savetxt(ZSetup.outputdir + 'mockSED.dat', save_mockdata)
 
 obsfreqs_alphas = np.array(
     [100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 
-ZSEDalphas = AModelSED.MSED(
-    ZSetup,
-    Tdust=30.,
-    q_dustexpo=-3.5,
-    f_grain=1.,  # grain filling factor
-    amin=1E-3,  # cm
-    amax=1.,  # cm, maximum grain size
-    Sigma_g=0.5,  # g/cm2
-    gtod_ratio=100.,
-    rho0=2.77,  # g/cm3
-    N_asizes=400,
-    nus=obsfreqs_alphas)
-
-ZSEDalphas.get_kappa_as()
-ZSEDalphas.get_taus_and_kappas()
-ZSEDalphas.get_Inus()
+ZSED4alphas = AModelSED.MSED(ZSetup)
+ZSED4alphas.copy(ZSED)
+ZSED4alphas.nus=obsfreqs_alphas
+ZSED4alphas.calcul()
 
 intraband_accuracy = 0.008
 npairs = 4
@@ -83,13 +78,18 @@ obsnu2s = np.zeros(npairs)
 sobsalphas = np.zeros(npairs)
 for ipair in range(npairs):
     obsalphas[ipair] = np.log(
-        ZSEDalphas.Inus[2 * ipair + 1] / ZSEDalphas.Inus[2 * ipair]) / np.log(
-            ZSEDalphas.nus[2 * ipair + 1] / ZSEDalphas.nus[2 * ipair])
-    obsnu2s[ipair] = ZSEDalphas.nus[2 * ipair + 1]
-    obsnu1s[ipair] = ZSEDalphas.nus[2 * ipair]
+        ZSED4alphas.Inus[2 * ipair + 1] /
+        ZSED4alphas.Inus[2 * ipair]) / np.log(
+            ZSED4alphas.nus[2 * ipair + 1] / ZSED4alphas.nus[2 * ipair])
+    obsnu2s[ipair] = ZSED4alphas.nus[2 * ipair + 1]
+    obsnu1s[ipair] = ZSED4alphas.nus[2 * ipair]
     sobsalphas[ipair] = (
-        1 / np.log(ZSEDalphas.nus[2 * ipair + 1] /
-                   ZSEDalphas.nus[2 * ipair])) * intraband_accuracy
+        1 / np.log(ZSED4alphas.nus[2 * ipair + 1] /
+                   ZSED4alphas.nus[2 * ipair])) * intraband_accuracy
+
+if AddNoise:
+    for ifreq in range(len(obsalphas)):
+        obsalphas[ifreq] += np.random.normal(0., sobsalphas[ifreq], 1)
 
 save_mockdata = np.zeros((npairs, 4))
 save_mockdata[:, 0] = obsnu1s
@@ -99,4 +99,43 @@ save_mockdata[:, 3] = sobsalphas
 
 np.savetxt(ZSetup.outputdir + 'mockalphas.dat', save_mockdata)
 
-# import SEDOptim
+import SEDOptim
+
+ZData = SEDOptim.Data(file_obsInus=ZSetup.outputdir + 'mockSED.dat',
+                      file_obsalphas=ZSetup.outputdir + 'mockalphas.dat')
+
+#ZData = SEDOptim.Data(file_obsInus=ZSetup.outputdir + 'mockSED.dat')
+
+# initial conditions
+
+ASED = AModelSED.MSED(ZSetup)
+ASED.copy(ZSED)
+ASED.nus=ZData.nus
+
+ZMerit = SEDOptim.Merit(ExecTimeReport=False)
+
+ASED.ExecTimeReport = False
+
+#print("ZMerit.calc", ZMerit.calcul(ZSetup, ZData, ASED))
+#for iiter in range(10):
+#    print("ZMerit.calc", ZMerit.calcul(ZSetup, ZData, ASED))
+
+domain = [
+    ['log(Tdust)', np.log10(30.), [0., 3]],
+    ['q_dustexpo', -3.5, [-3.99, -2.]],
+    #['f_grain', 1., [0., 1.]],
+    ['log(amax)', np.log10(1.), [np.log10(1E-3),
+                                  np.log10(10.)]],  #cm
+    ['log(Sigma_g)',
+     np.log10(50.), [np.log10(1E-5), np.log10(1E3)]]
+]  # g/cm2
+
+OptimM = SEDOptim.OptimM(
+    RunMCMC=False,
+    MCMC_Nit=10000,  #MCMC iterations
+    nwalkers_pervar=10,
+    burn_in=8000,
+    n_cores_MCMC=4,
+    domain=domain)
+
+OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
