@@ -12,6 +12,8 @@ import cmath as cma
 import emcee
 import corner
 
+from multiprocessing import Pool
+
 from astropy import constants as const
 
 c_MKS = const.c.value  # m/s
@@ -276,21 +278,26 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
             print("now about to call run_mcmc with Nit", Nit, "and nmwalkers",
                   nwalkers, " and ncores", n_cores)
 
-        from multiprocessing import Pool
-        with Pool(n_cores) as pool:
-            lnprobargs = [names, bnds, ZSetup, ZData, ASED, ZMerit]
-
+        start = time()
+        lnprobargs = [names, bnds, ZSetup, ZData, ASED, ZMerit]
+        if n_cores > 1:
+            with Pool(n_cores) as pool:
+                sampler = emcee.EnsembleSampler(nwalkers,
+                                                ndim,
+                                                lnprob,
+                                                args=lnprobargs,
+                                                pool=pool)
+                sampler.run_mcmc(pos, Nit, progress=OptimM.MCMCProgress)
+        else:
             sampler = emcee.EnsembleSampler(nwalkers,
                                             ndim,
                                             lnprob,
-                                            args=lnprobargs,
-                                            pool=pool)
-            start = time()
+                                            args=lnprobargs)
             sampler.run_mcmc(pos, Nit, progress=OptimM.MCMCProgress)
-            end = time()
-            multi_time = end - start
-            if OptimM.Report:
-                print("Multiprocessing took {0:.1f} seconds".format(multi_time))
+        end = time()
+        emcee_time = end - start
+        if OptimM.Report:
+            print("EnsembleSampler took {0:.1f} seconds".format(emcee_time))
 
         samples = sampler.chain  # chain= array(nwalkers,nit,ndim)
         lnprobs = sampler.lnprobability
@@ -487,6 +494,8 @@ class Data():
                 allnus[inu2] = self.nu2s_alphas[ipair]
             self.nus_alphas = allnus
 
+    def copy(self, AnotherData):
+        self.__dict__.update(AnotherData.__dict__)
 
 class Merit():
 

@@ -9,6 +9,8 @@ from scipy.interpolate import interp1d
 import cmath as cma
 # from time import time,gmtime, strftime
 import sys
+from multiprocessing import Pool
+from tqdm import tqdm
 
 from astropy import constants as const
 
@@ -80,7 +82,7 @@ def punchmap(im, hdu, units='', fileout='test.fits'):
     hdr['BUNIT'] = units
     hdu[0].header = hdr
     hdu[0].data = im
-    hdu.writeto(fileout,overwrite=True)
+    hdu.writeto(fileout, overwrite=True)
 
 
 zoomfactor = 8
@@ -98,6 +100,8 @@ files_specindex = [
     './data/specindec_230.fits',
     './data/specindec_345.fits',
 ]
+
+n_cores_map = 3
 
 mfreq_imhdus = []
 for afile in files_images:
@@ -180,7 +184,7 @@ OptimM = SEDOptim.OptimM(
     MCMC_Nit=100,  # 200 MCMC iterations
     nwalkers_pervar=10,  # 10
     burn_in=50,  #100
-    n_cores_MCMC=6,
+    n_cores_MCMC=1,
     ChainPlots=False,
     CornerPlots=False,
     Report=False,
@@ -207,9 +211,18 @@ imlogSigma_g = np.zeros(im_canvas.shape)
 supimlogSigma_g = np.zeros(im_canvas.shape)
 sdoimlogSigma_g = np.zeros(im_canvas.shape)
 
+
+def exec_optim_1los(pos):
+    AData=pos[2]
+    [names, mcmc_results, bestparams] = OptimM.MCMC(ZSetup, AData, ASED,
+                                                    ZMerit)
+    passout = [pos, names, mcmc_results, bestparams]
+    return passout
+
+
+tasks = []
 nx, ny = im_canvas.shape
 for ix in range(nx):
-    print("ix", ix, " < ", nx)
     for iy in range(ny):
         Inus = []
         specindexes = []
@@ -222,31 +235,44 @@ for ix in range(nx):
             aspecindex = aspecindexmap[ix, iy]
             specindexes.append(aspecindex)
 
-        ZData.Inus = np.array(Inus)
-        ZData.sInus = np.array(Inus) * fluxcal_accuracy
-        ZData.alphas = np.array(specindexes)
-        ZData.salphas = (1 / np.log(obsnu2s / obsnu1s)) * intraband_accuracy
+        AData = SEDOptim.Data()
+        AData.copy(ZData)
+        AData.Inus = np.array(Inus)
+        AData.sInus = np.array(Inus) * fluxcal_accuracy
+        AData.alphas = np.array(specindexes)
+        AData.salphas = (1 / np.log(obsnu2s / obsnu1s)) * intraband_accuracy
+        tasks.append([ix, iy, AData])
 
-        [names, mcmc_results,
-         bestparams] = OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
+print("loaded all tasks")
+with Pool(n_cores_map) as pool:
+    Pooloutput = list(tqdm(pool.imap(exec_optim_1los, tasks),
+                           total=len(tasks)))
+    pool.close()
+    pool.join()
 
-        for iparam, aname in enumerate(names):
-            if 'Tdust' in aname:
-                imlogTdust[ix, iy] = bestparams[iparam]
-                supimlogTdust[ix, iy] = mcmc_results[iparam][1]
-                sdoimlogTdust[ix, iy] = mcmc_results[iparam][2]
-            if 'dustexpo' in aname:
-                imq_dustexpo[ix, iy] = bestparams[iparam]
-                supimq_dustexpo[ix, iy] = mcmc_results[iparam][1]
-                sdoimq_dustexpo[ix, iy] = mcmc_results[iparam][2]
-            if 'amax' in aname:
-                imlogamax[ix, iy] = bestparams[iparam]
-                supimlogamax[ix, iy] = mcmc_results[iparam][1]
-                sdoimlogamax[ix, iy] = mcmc_results[iparam][2]
-            if 'Sigma_g' in aname:
-                imlogSigma_g[ix, iy] = bestparams[iparam]
-                supimlogSigma_g[ix, iy] = mcmc_results[iparam][1]
-                sdoimlogSigma_g[ix, iy] = mcmc_results[iparam][2]
+for alos in Pooloutput:
+    ix = alos[0][0]
+    iy = alos[0][1]
+    names = alos[1]
+    mcmc_results = alos[2]
+    bestparams = alos[3]
+    for iparam, aname in enumerate(names):
+        if 'Tdust' in aname:
+            imlogTdust[ix, iy] = bestparams[iparam]
+            supimlogTdust[ix, iy] = mcmc_results[iparam][1]
+            sdoimlogTdust[ix, iy] = mcmc_results[iparam][2]
+        if 'dustexpo' in aname:
+            imq_dustexpo[ix, iy] = bestparams[iparam]
+            supimq_dustexpo[ix, iy] = mcmc_results[iparam][1]
+            sdoimq_dustexpo[ix, iy] = mcmc_results[iparam][2]
+        if 'amax' in aname:
+            imlogamax[ix, iy] = bestparams[iparam]
+            supimlogamax[ix, iy] = mcmc_results[iparam][1]
+            sdoimlogamax[ix, iy] = mcmc_results[iparam][2]
+        if 'Sigma_g' in aname:
+            imlogSigma_g[ix, iy] = bestparams[iparam]
+            supimlogSigma_g[ix, iy] = mcmc_results[iparam][1]
+            sdoimlogSigma_g[ix, iy] = mcmc_results[iparam][2]
 
 punchmap(imlogTdust, hdu_canvas, fileout=outputdir + 'imlogTdust.fits')
 punchmap(supimlogTdust, hdu_canvas, fileout=outputdir + 'supimlogTdust.fits')
