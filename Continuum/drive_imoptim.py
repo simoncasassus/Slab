@@ -176,9 +176,9 @@ nvars = len(domain)
 print("nvars: ", nvars)
 OptimM = SEDOptim.OptimM(
     RunMCMC=True,
-    MCMC_Nit=3,  # 200 MCMC iterations
-    nwalkers_pervar=3,  # 10
-    burn_in=1,  #100
+    MCMC_Nit=100,  # 200 MCMC iterations
+    nwalkers_pervar=10,  # 10
+    burn_in=50,  #100
     n_cores_MCMC=6,
     ChainPlots=False,
     CornerPlots=False,
