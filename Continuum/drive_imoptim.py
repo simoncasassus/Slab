@@ -79,6 +79,7 @@ def punchmap(im, hdu, units='', fileout='test.fits'):
     hdr = hdu[0].header
     hdr['BUNIT'] = units
     hdu[0].header = hdr
+    hdu[0].data = im
     hdu.writeto(fileout)
 
 
@@ -175,8 +176,8 @@ nvars = len(domain)
 print("nvars: ", nvars)
 OptimM = SEDOptim.OptimM(
     RunMCMC=True,
-    MCMC_Nit=10,  # 200 MCMC iterations
-    nwalkers_pervar=10, # 10
+    MCMC_Nit=3,  # 200 MCMC iterations
+    nwalkers_pervar=3,  # 10
     burn_in=1,  #100
     n_cores_MCMC=6,
     ChainPlots=False,
