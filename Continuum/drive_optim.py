@@ -28,7 +28,9 @@ ZSetup = AModelSED.Setup(
     opct_file='opct_mix.txt',
     VerboseInit=False,
     #outputdir='./output_dev_optim/')
-    outputdir='./output_dev_optim_walphas/')
+    #outputdir='output_dev_optim_walphas/')
+    outputdir='output_optim_walphas_Nittrials/')
+    #outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 
@@ -49,11 +51,13 @@ ZSED = AModelSED.MSED(
 ZSED.calcul()
 
 obsInus = ZSED.Inus.copy()
-fluxcal_accuracy=0.1
+fluxcal_accuracy = 0.1
 AddNoise = False
 if AddNoise:
     for ifreq in range(len(obsInus)):
-        obsInus[ifreq] += np.random.normal(0., obsInus[ifreq] * fluxcal_accuracy, 1)
+        obsInus[ifreq] += np.random.normal(0.,
+                                           obsInus[ifreq] * fluxcal_accuracy,
+                                           1)
 
 save_mockdata = np.zeros((len(obsfreqs), 3))
 save_mockdata[:, 0] = obsfreqs
@@ -65,9 +69,12 @@ np.savetxt(ZSetup.outputdir + 'mockSED.dat', save_mockdata)
 obsfreqs_alphas = np.array(
     [100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 
+obsfreqs_alphas = np.array(
+    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
+
 ZSED4alphas = AModelSED.MSED(ZSetup)
 ZSED4alphas.copy(ZSED)
-ZSED4alphas.nus=obsfreqs_alphas
+ZSED4alphas.nus = obsfreqs_alphas
 ZSED4alphas.calcul()
 
 intraband_accuracy = 0.008
@@ -75,8 +82,12 @@ npairs = 4
 obsalphas = np.zeros(npairs)
 obsnu1s = np.zeros(npairs)
 obsnu2s = np.zeros(npairs)
+obsInu1s = np.zeros(npairs)
+obsInu2s = np.zeros(npairs)
 sobsalphas = np.zeros(npairs)
 for ipair in range(npairs):
+    obsInu1s[ipair] = ZSED4alphas.Inus[2 * ipair]
+    obsInu2s[ipair] = ZSED4alphas.Inus[2 * ipair + 1]
     obsalphas[ipair] = np.log(
         ZSED4alphas.Inus[2 * ipair + 1] /
         ZSED4alphas.Inus[2 * ipair]) / np.log(
@@ -91,11 +102,12 @@ if AddNoise:
     for ifreq in range(len(obsalphas)):
         obsalphas[ifreq] += np.random.normal(0., sobsalphas[ifreq], 1)
 
-save_mockdata = np.zeros((npairs, 4))
+save_mockdata = np.zeros((npairs, 5))
 save_mockdata[:, 0] = obsnu1s
 save_mockdata[:, 1] = obsnu2s
-save_mockdata[:, 2] = obsalphas
-save_mockdata[:, 3] = sobsalphas
+save_mockdata[:, 2] = obsInu1s
+save_mockdata[:, 3] = obsalphas
+save_mockdata[:, 4] = sobsalphas
 
 np.savetxt(ZSetup.outputdir + 'mockalphas.dat', save_mockdata)
 
@@ -110,7 +122,7 @@ ZData = SEDOptim.Data(file_obsInus=ZSetup.outputdir + 'mockSED.dat',
 
 ASED = AModelSED.MSED(ZSetup)
 ASED.copy(ZSED)
-ASED.nus=ZData.nus
+ASED.nus = ZData.nus
 
 ZMerit = SEDOptim.Merit(ExecTimeReport=False)
 
@@ -124,18 +136,26 @@ domain = [
     ['log(Tdust)', np.log10(30.), [0., 3]],
     ['q_dustexpo', -3.5, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(1.), [np.log10(1E-3),
-                                  np.log10(10.)]],  #cm
+    ['log(amax)', np.log10(1.), [np.log10(1E-3), np.log10(10.)]],  #cm
     ['log(Sigma_g)',
      np.log10(50.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
 
+domain = [
+    ['log(Tdust)', np.log10(60.), [0., 3]],
+    ['q_dustexpo', -3.0, [-3.99, -2.]],
+    #['f_grain', 1., [0., 1.]],
+    ['log(amax)', np.log10(1), [np.log10(1E-3), np.log10(10.)]],  #cm
+    ['log(Sigma_g)',
+     np.log10(10.), [np.log10(1E-5), np.log10(1E3)]]
+]  # g/cm2
+
 OptimM = SEDOptim.OptimM(
-    RunMCMC=False,
-    MCMC_Nit=10000,  #MCMC iterations
+    RunMCMC=True,
+    MCMC_Nit=1000,  #MCMC iterations
     nwalkers_pervar=10,
-    burn_in=8000,
-    n_cores_MCMC=4,
+    burn_in=200,
+    n_cores_MCMC=6,
     domain=domain)
 
 OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)

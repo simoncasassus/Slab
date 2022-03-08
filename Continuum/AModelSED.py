@@ -46,7 +46,8 @@ def Plot_Inu(nus, Inus, overplots=[], outputdir='', fileout='fig_Inu.pdf'):
         plt.plot(anus / 1E9, aInus, label=label)
     plt.plot(nus / 1E9, Inus, label=r'$I_\nu$')
     #plt.plot(nus / 1E9, Inus[-1] * (nus / nus[-1])**2, label=r'$\nu^2$')
-    plt.ylabel('Jy/sr')
+    #plt.ylabel('Jy/sr')
+    plt.ylabel('Jy/beam')
     #plt.ylabel('Jy/brick')
     plt.xlabel(r'$\nu$ / GHz')
     #plt.xscale('log')
@@ -215,7 +216,7 @@ class Setup():
 
     def prep(self):
         if (not re.search(r"\/$", self.outputdir)):
-            outputdir += '/'
+            self.outputdir += '/'
             print("added trailing back slash to outputdir")
         if ((os.path.exists(self.outputdir) & (self.ClearOutputDir))):
             os.system("rm -rf " + self.outputdir)
@@ -270,8 +271,9 @@ class MSED(Setup):
             N_asizes=40,
             nus=[],
             ExecTimeReport=False,
-            GoNumba=False,
+            GoNumba=True,
             ######################################################################
+            Inus=[],
             Sigma_d=0,
             a_sizes=[],
             Sigma_as=[],
@@ -428,14 +430,15 @@ class MSED(Setup):
 
     def get_Plot(self):
         # omega_beam = np.pi * (0.05 * np.pi / (180. * 3600.))**2 # Baobab's brick
+        omega_beam = (np.pi/(4.*np.log(2))) * (0.040 * np.pi / (180. * 3600.))**2 # C10 B3 beam
         BB = Bnu_Jy(self.nus, self.Tdust)
         #overplots=[ [self.nus,omega_beam*BB,'BB']]
-        overplots = [[self.nus, BB, 'BB']]
+        overplots = [[self.nus, omega_beam*BB, 'BB']]
         print("minimum BB/Inu:", min(BB / self.Inus))
         print("maximum tau:", max(self.tau))
         print("minimum tau:", min(self.tau))
         #Plot_Inu(self.nus, self.Inus * omega_beam, overplots=overplots, outputdir=self.outputdir)
         Plot_Inu(self.nus,
-                 self.Inus,
+                 omega_beam*self.Inus,
                  overplots=overplots,
                  outputdir=self.outputdir)
