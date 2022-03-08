@@ -101,7 +101,7 @@ files_specindex = [
     './data/specindec_345.fits',
 ]
 
-n_cores_map = 3
+n_cores_map = 38
 
 mfreq_imhdus = []
 for afile in files_images:
