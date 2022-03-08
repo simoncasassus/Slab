@@ -80,7 +80,7 @@ def punchmap(im, hdu, units='', fileout='test.fits'):
     hdr['BUNIT'] = units
     hdu[0].header = hdr
     hdu[0].data = im
-    hdu.writeto(fileout)
+    hdu.writeto(fileout,overwrite=True)
 
 
 zoomfactor = 8
@@ -131,6 +131,7 @@ ZSetup = AModelSED.Setup(
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 
 fluxcal_accuracy = np.array([0.1, 0.1, 0.1, 0.1])
+fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01])
 
 obsfreqs_alphas = np.array(
     [100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
