@@ -76,9 +76,9 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False):
 
 
 def punchmap(im, hdu, units='', fileout='test.fits'):
-    hdr = hdu.header
+    hdr = hdu[0].header
     hdr['BUNIT'] = units
-    hdu.header = hdr
+    hdu[0].header = hdr
     hdu.writeto(fileout)
 
 
