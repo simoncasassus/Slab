@@ -337,7 +337,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
             ((Nit - iplot_burn_in)), order='c')
 
     ######### save bestparams
-    np.save(workdir + 'bestparams_mcmc.dat', bestparams)
+    if OptimM.Report:
+            np.save(workdir + 'bestparams_mcmc.dat', bestparams)
 
     if OptimM.ChainPlots:
         import matplotlib.pyplot as plt
