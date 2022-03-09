@@ -29,19 +29,24 @@ ZSetup = AModelSED.Setup(
     VerboseInit=False,
     #outputdir='./output_dev_optim/')
     #outputdir='output_dev_optim_walphas/')
-    outputdir='output_optim_Nit10000_fluxcal0.01/')
+    outputdir='output_optim_dev_fluxcal0.01/')
     #outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 
+#Tdust 25.7
+#Sigma_g = 98.3
+#a_max = 0.103
+#dustexpo = -3.49
+
 ZSED = AModelSED.MSED(
     ZSetup,
-    Tdust=30.,
-    q_dustexpo=-3.5,
+    Tdust=25.7, # 25.7
+    q_dustexpo=-3.49, # -3.5
     f_grain=1.,  # grain filling factor
     amin=1E-3,  # cm
-    amax=1.,  # cm, maximum grain size
-    Sigma_g=50.,  # g/cm2
+    amax=0.103,  # 1 cm, maximum grain size
+    Sigma_g=98.3,  # 50 g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=400,
@@ -145,7 +150,7 @@ domain_Powell = [
     ['log(Tdust)', np.log10(100.), [0., 3]],
     #['q_dustexpo', -3.0, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
-    #['log(amax)', np.log10(0.01), [np.log10(1E-3), np.log10(10.)]],  #cm
+    ['log(amax)', np.log10(0.1), [np.log10(1E-3), np.log10(10.)]],  #cm
     ['log(Sigma_g)',
      np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
@@ -177,8 +182,8 @@ OptimM = SEDOptim.OptimM(
 OptimM.domain=domain_Powell
 OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
 
-OptimM.Inherit_Init=True
-print("ASED.Tdust",ASED.Tdust)
+#OptimM.Inherit_Init=True
+#print("ASED.Tdust",ASED.Tdust)
 
-OptimM.domain=OptimM.domain_MCMC
-OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
+#OptimM.domain=OptimM.domain_MCMC
+#OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)

@@ -38,7 +38,7 @@ def summary_SEDs(nvar,
                  chains=None,
                  nchains_4plots=1000,
                  filename='fig_bestfit.png',
-                 DoubleArrow=False):
+                 DoubleArrow=True):
     workdir = ZSetup.outputdir
     Ztitle_maxL = ''
     Ztitle_CG = 'Powell '
@@ -177,8 +177,8 @@ def summary_SEDs(nvar,
                       Inu1 * ZData.omega_beam,
                       dnu / 1E9,
                       dInu * ZData.omega_beam,
-                      width=Inu1 * ZData.omega_beam * 0.1,
-                      head_length=dnu / (4E9),
+                      width=Inu1 * ZData.omega_beam * 0.01,
+                      head_length=dnu / (2E9),
                       color='C1')
             if DoubleArrow:
                 dInu = (Inu3 - Inu1)
@@ -187,8 +187,8 @@ def summary_SEDs(nvar,
                           Inu1 * ZData.omega_beam,
                           dnu / 1E9,
                           dInu * ZData.omega_beam,
-                          width=Inu1 * ZData.omega_beam * 0.1,
-                          head_length=-dnu / (4E9),
+                          width=Inu1 * ZData.omega_beam * 0.01,
+                          head_length=-dnu / (2E9),
                           color='C1')
 
     plt.ylabel(r'Jy beam$^{-1}$')
@@ -219,6 +219,7 @@ def lnlike(x_free, parnames, ZSetup, ZData, ASED, ZMerit):
 
     assignfreeparams(parnames, x_free, ASED)
 
+    
     chi2 = ZMerit.calcul(ZSetup, ZData, ASED)
     chi2 = chi2.item()
     # if OptimM.PrintChi2s:
@@ -642,7 +643,7 @@ class Data():
             nu1s_alphas=None,
             Inu1s=None,
             omega_beam=(np.pi / (4. * np.log(2))) *
-        (0.040 * np.pi / (180. * 3600.))**2,  # C10 B3 beam
+            (0.040 * np.pi / (180. * 3600.))**2,  # C10 B3 beam
             nu2s_alphas=None,
             nus_alphas=None,
             alphas=None,
