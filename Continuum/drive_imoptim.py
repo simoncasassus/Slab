@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 from astropy.io import fits
 from copy import deepcopy
+from functools import partial
 
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
@@ -72,9 +73,11 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False):
 
     hdr['PIXSCALE'] = pixscale
     hdu[0].data = im
-    hdu[0].hdr = hdr
+    hdu[0].header = hdr
 
-    return rrs, hdu, pixscale
+    omega_beam = (np.pi / (4 * np.log(2))) * (hdr['BMAJ'] *
+                                              hdr['BMIN']) * (np.pi / 180)**2
+    return rrs, hdu, pixscale, omega_beam
 
 
 def punchmap(im, hdu, units='', fileout='test.fits'):
@@ -83,6 +86,20 @@ def punchmap(im, hdu, units='', fileout='test.fits'):
     hdu[0].header = hdr
     hdu[0].data = im
     hdu.writeto(fileout, overwrite=True)
+
+
+def exec_optim_1los(pos, OptimM=None, ZSetup=None, ASED=None, ZMerit=None):
+    AData = pos[2]
+    if OptimM.RunConjGrad:
+        OptimM.domain = OptimM.domain_CG
+        [names, bestparams] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
+        passout = [names, bestparams]
+        OptimM.domain = OptimM.domain_MCMC
+
+    [names, mcmc_results, bestparams] = OptimM.MCMC(ZSetup, AData, ASED,
+                                                    ZMerit)
+    passout = [pos, names, mcmc_results, bestparams]
+    return passout
 
 
 zoomfactor = 8
@@ -101,21 +118,28 @@ files_specindex = [
     './data/specindec_345.fits',
 ]
 
-n_cores_map = 38
+n_cores_map = 4
 
 mfreq_imhdus = []
+omega_beams = []
 for afile in files_images:
-    rrs, hdu, pixscale = load_imagfile(afile, zoomfactor=zoomfactor)
+    rrs, hdu, pixscale, omega_beam = load_imagfile(afile,
+                                                   zoomfactor=zoomfactor)
     mfreq_imhdus.append(hdu)
+    omega_beams.append(omega_beam)
+
+omega_beam = omega_beams[0]
 
 print(len(mfreq_imhdus))
 hdu_canvas = mfreq_imhdus[0]
 
+hdu_canvas.writeto('canvas.fits', overwrite=True)
 Vtools.View(hdu_canvas)
 
 mfreq_specindexhdus = []
 for afile in files_images:
-    rrs2, hdu, pixscale = load_imagfile(afile, zoomfactor=zoomfactor)
+    rrs2, hdu, pixscale, omega_beam_b = load_imagfile(afile,
+                                                      zoomfactor=zoomfactor)
     mfreq_specindexhdus.append(hdu)
 
 print(len(mfreq_specindexhdus))
@@ -152,6 +176,7 @@ ZData.nus = obsfreqs
 ZData.nu1s_alphas = obsnu1s
 ZData.nu2s_alphas = obsnu2s
 ZData.nus_alphas = obsfreqs_alphas
+ZData.omega_beam = omega_beam
 
 ASED = AModelSED.MSED(
     ZSetup,
@@ -176,21 +201,29 @@ domain = [
     ['log(Sigma_g)',
      np.log10(50.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
+domain_MCMC = domain
+domain_CG = [['log(Tdust)', np.log10(30.), [0., 3]],
+             ['log(Sigma_g)',
+              np.log10(50.), [np.log10(1E-5), np.log10(1E3)]]]
 
 nvars = len(domain)
 print("nvars: ", nvars)
 OptimM = SEDOptim.OptimM(
+    RunConjGrad=True,
     RunMCMC=True,
-    MCMC_Nit=100,  # 200 MCMC iterations
+    MCMC_Nit=1000,  # 200 MCMC iterations
     nwalkers_pervar=10,  # 10
-    burn_in=50,  #100
+    burn_in=500,  #100
     n_cores_MCMC=1,
-    ChainPlots=False,
-    CornerPlots=False,
-    Report=False,
-    MCMCProgress=False,
-    SummaryPlots=False,
-    domain=domain)
+    ChainPlots=True,
+    CornerPlots=True,
+    Report=True,
+    MCMCProgress=True,
+    SummaryPlots=True,
+    Inherit_Init=True,
+    domain=domain,
+    domain_CG=domain_CG,
+    domain_MCMC=domain)
 
 intraband_accuracy = 0.008
 
@@ -211,24 +244,18 @@ imlogSigma_g = np.zeros(im_canvas.shape)
 supimlogSigma_g = np.zeros(im_canvas.shape)
 sdoimlogSigma_g = np.zeros(im_canvas.shape)
 
-
-def exec_optim_1los(pos):
-    AData=pos[2]
-    [names, mcmc_results, bestparams] = OptimM.MCMC(ZSetup, AData, ASED,
-                                                    ZMerit)
-    passout = [pos, names, mcmc_results, bestparams]
-    return passout
-
-
 tasks = []
 nx, ny = im_canvas.shape
 for ix in range(nx):
     for iy in range(ny):
+        if not ((ix == 16) & (iy == 16)):
+            continue
+        print("ix ", ix, " iy ", iy)
         Inus = []
         specindexes = []
         for ifreq in range(nfreqs):
             aim = mfreq_imhdus[ifreq][0].data
-            aInu = aim[ix, iy]
+            aInu = aim[ix, iy] / omega_beams[ifreq]
             Inus.append(aInu)
         for ispecindex in range(nspecindexs):
             aspecindexmap = mfreq_specindexhdus[ispecindex][0].data
@@ -239,14 +266,23 @@ for ix in range(nx):
         AData.copy(ZData)
         AData.Inus = np.array(Inus)
         AData.sInus = np.array(Inus) * fluxcal_accuracy
+        AData.Inu1s = AData.Inus
         AData.alphas = np.array(specindexes)
         AData.salphas = (1 / np.log(obsnu2s / obsnu1s)) * intraband_accuracy
         tasks.append([ix, iy, AData])
 
-print("loaded all tasks")
+#        {'ZSetup': ZSetup,'ASED': ASED,'ZMerit': ZMerit}
+
+print("loaded all ", len(tasks), "tasks")
 with Pool(n_cores_map) as pool:
-    Pooloutput = list(tqdm(pool.imap(exec_optim_1los, tasks),
-                           total=len(tasks)))
+    Pooloutput = list(
+        tqdm(pool.imap(
+            partial(exec_optim_1los,
+                    OptimM=OptimM,
+                    ZSetup=ZSetup,
+                    ASED=ASED,
+                    ZMerit=ZMerit), tasks),
+             total=len(tasks)))
     pool.close()
     pool.join()
 

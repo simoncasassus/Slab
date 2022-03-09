@@ -7,6 +7,7 @@ from time import time
 
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+import scipy.optimize as op
 import cmath as cma
 
 import emcee
@@ -27,95 +28,121 @@ import AModelSED
 
 def summary_SEDs(nvar,
                  names,
-                 mcmc_results,
-                 mcmc_results_0,
-                 bestparams,
-                 chains,
                  ASED,
                  ZData,
                  ZSetup,
+                 CGbestparams=None,
+                 mcmc_results=None,
+                 mcmc_bestparams=None,
+                 mcmc_results_0=None,
+                 chains=None,
+                 nchains_4plots=1000,
+                 filename='fig_bestfit.png',
                  DoubleArrow=False):
     workdir = ZSetup.outputdir
     Ztitle_maxL = ''
+    Ztitle_CG = 'Powell '
     Ztitle_mcmc = ''
     for iparam in range(nvar):
         name = names[iparam]
-        maxLvalue = bestparams[iparam]
-        parmcmc_results = mcmc_results[iparam]
-        value = parmcmc_results[0]
-        uperror = parmcmc_results[1]
-        downerror = parmcmc_results[2]
+        dolog = False
         m = re.search('log\((.*)\)', name)
         if m:
+            dolog = True
             name = m.group(1)
-            uperror = 10**(value + uperror)-10**(value)
-            downerror = 10**(value)-10**(value - downerror)
-            value = 10**(value)
-            maxLvalue = 10**(maxLvalue)
-        Ztitle_maxL = Ztitle_maxL + name + r'= %.1f ' % (maxLvalue)
-        Ztitle_mcmc = Ztitle_mcmc + name + r'= %.1f+$^{+%.1f}_{-%.1f}$ ' % (
-            value, uperror, downerror)
 
-    print("Ztitle_mcmc", Ztitle_mcmc)
-    print("Ztitle_maxL", Ztitle_maxL)
+        if CGbestparams is not None:
+            maxLvalueCG = CGbestparams[iparam]
+            if dolog:
+                maxLvalueCG = 10**(maxLvalueCG)
+            Ztitle_CG = Ztitle_CG + name + r'= %.1f ' % (maxLvalueCG)
+
+        if mcmc_results is not None:
+            parmcmc_results = mcmc_results[iparam]
+            maxLvalue = mcmc_bestparams[iparam]
+            value = parmcmc_results[0]
+            uperror = parmcmc_results[1]
+            downerror = parmcmc_results[2]
+            if dolog:
+                uperror = 10**(value + uperror) - 10**(value)
+                downerror = 10**(value) - 10**(value - downerror)
+                value = 10**(value)
+                maxLvalue = 10**(maxLvalue)
+            Ztitle_maxL = Ztitle_maxL + name + r'= %.1f ' % (maxLvalue)
+            Ztitle_mcmc = Ztitle_mcmc + name + r'= %.1f+$^{+%.1f}_{-%.1f}$ ' % (
+                value, uperror, downerror)
 
     N_freqs = 100
-    lognu1 = np.log10(30E9)
+    lognu1 = np.log10(90E9)
     lognu2 = np.log10(700E9)
     lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
     nus = 10**lognus
     ASED.nus = nus
     ASED.calcul()
 
-    ASEDmax = AModelSED.MSED(ZSetup)
-    ASEDmax.copy(ASED)
-
-    ASEDmedian = AModelSED.MSED(ZSetup)
-    ASEDmedian.copy(ASED)
-    assignfreeparams(names, mcmc_results_0, ASEDmedian)
-    ASEDmedian.calcul()
-
     Inorm = (ASED.nus / 100E9)**2
-    omega_beam = (np.pi /
-                  (4. * np.log(2))) * (0.040 * np.pi /
-                                       (180. * 3600.))**2  # C10 B3 beam
     plt.figure(figsize=(10, 4))
-    nchains, nvars = chains.shape
-    print("nchains ", nchains, " nvars ", nvars)
+    WithSEDchains = False
+    if chains is not None:
+        WithSEDchains = True
+        nchains, nvars = chains.shape
+        print("nchains ", nchains, " nvars ", nvars)
+
     ASEDparams = AModelSED.MSED(ZSetup)
     ASEDparams.copy(ASED)
-    nchains_4plots = 1000
-    WithSEDchains = True
     if WithSEDchains:
+        print("plotting ", nchains_4plots, " sample SEDs")
         for ichain in range(nchains_4plots):
             #print("ichain", ichain)
             apars = chains[nchains - nchains_4plots + ichain, :]
             assignfreeparams(names, apars, ASEDparams)
             ASEDparams.calcul()
             plt.plot(ASEDparams.nus / 1E9,
-                     omega_beam * ASEDparams.Inus / Inorm,
+                     ZData.omega_beam * ASEDparams.Inus / Inorm,
                      alpha=0.01,
                      lw=0.5,
                      zorder=-32,
                      color='grey')
 
-    plt.plot(
-        ASED.nus / 1E9,
-        omega_beam * ASED.Inus / Inorm,
-        color='C0',
-        zorder=2,
-        label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
-        '\n' + Ztitle_maxL)
-    plt.plot(ASEDmedian.nus / 1E9,
-             omega_beam * ASEDmedian.Inus / Inorm,
-             color='C2',
-             zorder=2,
-             label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ median' + '\n' +
-             Ztitle_mcmc)
+    if CGbestparams is not None:
+        assignfreeparams(names, CGbestparams, ASED)
+        ASED.calcul()
+        plt.plot(
+            ASED.nus / 1E9,
+            ZData.omega_beam * ASED.Inus / Inorm,
+            color='C3',
+            zorder=2,
+            label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
+            '\n' + Ztitle_CG)
+
+    if mcmc_results:
+        assignfreeparams(names, mcmc_bestparams, ASED)
+        ASED.calcul()
+
+        plt.plot(
+            ASED.nus / 1E9,
+            ZData.omega_beam * ASED.Inus / Inorm,
+            color='C0',
+            zorder=2,
+            label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
+            '\n' + Ztitle_maxL)
+
+        ASEDmedian = AModelSED.MSED(ZSetup)
+        ASEDmedian.copy(ASED)
+        assignfreeparams(names, mcmc_results_0, ASEDmedian)
+        ASEDmedian.calcul()
+
+        plt.plot(ASEDmedian.nus / 1E9,
+                 ZData.omega_beam * ASEDmedian.Inus / Inorm,
+                 color='C2',
+                 zorder=2,
+                 label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ median' + '\n' +
+                 Ztitle_mcmc)
+
     Inorm_Data = (ZData.nus / 100E9)**2
     plt.errorbar(ZData.nus / 1E9,
-                 omega_beam * ZData.Inus / Inorm_Data,
-                 yerr=omega_beam * ZData.sInus / Inorm_Data,
+                 ZData.omega_beam * ZData.Inus / Inorm_Data,
+                 yerr=ZData.omega_beam * ZData.sInus / Inorm_Data,
                  color='C1',
                  zorder=1,
                  label='data',
@@ -123,7 +150,14 @@ def summary_SEDs(nvar,
                  linestyle='none',
                  barsabove=True)
 
-    if ZData.file_obsalphas:
+    plt.plot(ZData.nus / 1E9,
+             ZData.omega_beam * ZData.Inus / Inorm_Data,
+             color='C1',
+             zorder=1,
+             marker='x',
+             linestyle='none')
+
+    if ZData.nus_alphas is not None:
         for ispecindex in range(len(ZData.alphas)):
             nu1 = ZData.nu1s_alphas[ispecindex]
             Inu1 = ZData.Inu1s[ispecindex]
@@ -138,30 +172,24 @@ def summary_SEDs(nvar,
             Inu2 /= (nu2 / 100E9)**2
             Inu3 /= (nu3 / 100E9)**2
             dInu = (Inu2 - Inu1)
-            print("Inu2", Inu2 * omega_beam, Inu1 * omega_beam)
+            print("Inu2", Inu2 * ZData.omega_beam, Inu1 * ZData.omega_beam)
             plt.arrow(nu1 / 1E9,
-                      Inu1 * omega_beam,
+                      Inu1 * ZData.omega_beam,
                       dnu / 1E9,
-                      dInu * omega_beam,
-                      width=Inu1 * omega_beam * 0.1,
+                      dInu * ZData.omega_beam,
+                      width=Inu1 * ZData.omega_beam * 0.1,
                       head_length=dnu / (4E9),
                       color='C1')
             if DoubleArrow:
                 dInu = (Inu3 - Inu1)
                 dnu = -0.1 * nu1
                 plt.arrow(nu1 / 1E9,
-                          Inu1 * omega_beam,
+                          Inu1 * ZData.omega_beam,
                           dnu / 1E9,
-                          dInu * omega_beam,
-                          width=Inu1 * omega_beam * 0.1,
+                          dInu * ZData.omega_beam,
+                          width=Inu1 * ZData.omega_beam * 0.1,
                           head_length=-dnu / (4E9),
                           color='C1')
-
-    numin = min(ASED.nus)
-    numax = max(ASED.nus)
-    #Imin,Imax = plt.get_ylim()
-
-    #plt.text(a0*0.9,d1*0.8,label,weight='bold',fontsize=10,bbox=dict(facecolor='white', alpha=0.8))
 
     plt.ylabel(r'Jy beam$^{-1}$')
     plt.xlabel(r'$\nu$ / GHz')
@@ -169,7 +197,8 @@ def summary_SEDs(nvar,
     plt.yscale('log')
     plt.legend()
     plt.grid()
-    fileout = workdir + 'fig_bestfit.png'
+    fileout = workdir + filename
+    print(fileout)
     plt.savefig(fileout, bbox_inches='tight')
 
 
@@ -219,7 +248,125 @@ def lnprob(x_free, parnames, bnds, ZSetup, ZData, ASED, ZMerit):
     return lp + lnlike(x_free, parnames, ZSetup, ZData, ASED, ZMerit)
 
 
+def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
+                                ZMerit, OptimM):
+    print("starting op.minimize")
+    start_time = time()
+    ftol = 1E-10  # 1e-10 too small leads to abnormal termination
+    eps = []
+    for ibnd, abnd in enumerate(bnds):
+        if ((x_free[ibnd] < abnd[0]) or (x_free[ibnd] > abnd[1])):
+            print("param ", names[ibnd], " is out of range")
+            sys.exit()
+        eps.append((abnd[1] - abnd[0]) / 100.)
+    eps = np.array(eps)
+    nll = lambda *args: -lnlike(*args)
+    x_free_init = x_free.copy()
+
+    init_lnlike = lnlike(x_free_init, names, ZSetup, ZData, ASED, ZMerit)
+    if OptimM.Report:
+        print("init_chi2 %e" % (-2. * init_lnlike))
+    options = {'eps': eps}
+    if OptimM.CGmaxiter:
+        options['maxiter'] = OptimM.CGmaxiter
+
+    result = op.minimize(
+        nll,
+        x_free,
+        tol=ftol,
+        bounds=bnds,
+        method='Powell',  #  'Powell' Nelder-Mead
+        options=options,
+        args=(names, ZSetup, ZData, ASED, ZMerit))
+    result_ml = result["x"]
+    if OptimM.Report:
+        print("result", result)
+        print("Optim done in (elapsed time):", time() - start_time)
+        print("Delta params", result_ml - x_free_init)
+
+    init_lnlike2 = lnlike(x_free_init, names, ZSetup, ZData, ASED, ZMerit)
+    if OptimM.Report:
+        print("init chi2 xcheck   %e" % (-2. * init_lnlike2))
+    best_lnlike = lnlike(result_ml, names, ZSetup, ZData, ASED, ZMerit)
+    if OptimM.Report:
+        print("best_chi2 %e" % (-2. * best_lnlike))
+
+    if OptimM.Report:
+        print("computing errors with Hessian")
+
+    tmp_i = np.zeros(len(result_ml))
+    errors_ml = np.zeros(len(result_ml))
+    #for i in list(range(len(result_ml))):
+    #    tmp_i[i] = 1.0
+    #    uncertainty_i = np.sqrt(result.hess_inv(tmp_i)[i])
+    #    errors_ml[i] = uncertainty_i
+    #    # print(('{0:12.4e} +- {1:.1e}'.format(result.x[i], uncertainty_i)))
+    return (result_ml, errors_ml)
+
+
+def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
+
+    maxiter = OptimM.CGmaxiter
+    ASED.nus = ZData.nus
+
+    names = list(map((lambda x: x[0]), OptimM.domain))
+    sample_params = list(map((lambda x: x[1]), OptimM.domain))
+    bnds = list(map((lambda x: x[2]), OptimM.domain))
+    nvar = len(list(names))
+
+    if OptimM.Inherit_Init:
+        for iname, aname in enumerate(names):
+            aname_4value=aname
+            m = re.search('log\((.*)\)', aname)
+            dolog=False
+            if m:
+                dolog = True
+                aname_4value = m.group(1)
+            value=getattr(ASED, aname_4value)
+            if dolog:
+                value=np.log10(value)
+            sample_params[iname] = value
+            if OptimM.Report:
+                print("Inherit_Init: ", aname, sample_params[iname])
+
+
+    if OptimM.Report:
+        print("nvar = ", nvar)
+
+    x_free = np.array(sample_params)
+
+    (result_ml,
+     errors_ml) = run_scipy_optimize_minimize(x_free, names, bnds, ZSetup,
+                                              ZData, ASED, ZMerit, OptimM)
+
+    if OptimM.Report:
+        np.save(ZSetup.outputdir + 'result_ml.dat', result_ml)
+        np.save(ZSetup.outputdir + 'result_ml_errors.dat', errors_ml)
+    if OptimM.SummaryPlots:
+
+        summary_SEDs(nvar,
+                     names,
+                     ASED,
+                     ZData,
+                     ZSetup,
+                     CGbestparams=result_ml,
+                     mcmc_results=None,
+                     mcmc_bestparams=None,
+                     mcmc_results_0=None,
+                     chains=None,
+                     nchains_4plots=False,
+                     filename='fig_bestfit_Powell.png',
+                     DoubleArrow=False)
+
+    return names, result_ml
+
+
+
+
 def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
+    # Inherit_Init: inherit initial conditions from ASED rather than from OptimM.domain
+
+    ASED.nus = ZData.nus
 
     workdir = ZSetup.outputdir
 
@@ -227,6 +374,21 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     sample_params = list(map((lambda x: x[1]), OptimM.domain))
     bnds = list(map((lambda x: x[2]), OptimM.domain))
     nvar = len(list(names))
+
+    if OptimM.Inherit_Init:
+        for iname, aname in enumerate(names):
+            aname_4value=aname
+            m = re.search('log\((.*)\)', aname)
+            dolog=False
+            if m:
+                dolog = True
+                aname_4value = m.group(1)
+            value=getattr(ASED, aname_4value)
+            if dolog:
+                value=np.log10(value)
+            sample_params[iname] = value
+            if OptimM.Report:
+                print("Inherit_Init: ", aname, sample_params[iname])
 
     if OptimM.Report:
         print("nvar = ", nvar)
@@ -306,7 +468,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
             ######### save samples
             np.save(workdir + 'samples.dat', samples)
             np.save(workdir + 'lnprobs.dat', lnprobs)
-            Delta_t = multi_time / 60.
+            Delta_t = emcee_time / 60.
             print("Execution done in (elapsed time):" + str(Delta_t) + " mn")
 
             print(("mean acceptance fraction: {0:.3f} ".format(
@@ -345,7 +507,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     ######### save bestparams
     if OptimM.Report:
-            np.save(workdir + 'bestparams_mcmc.dat', bestparams)
+        np.save(workdir + 'bestparams_mcmc.dat', bestparams)
 
     if OptimM.ChainPlots:
         import matplotlib.pyplot as plt
@@ -405,7 +567,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     if OptimM.Report:
         print("running final lnlike to set model to median values")
-        final_lnlike = lnlike(mcmc_results_0, names, ZSetup, ZData, ASED, ZMerit)
+        final_lnlike = lnlike(mcmc_results_0, names, ZSetup, ZData, ASED,
+                              ZMerit)
         print("chi2 = %e " % (-2 * final_lnlike))
 
     if OptimM.Report:
@@ -417,20 +580,35 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     ######################################################################
     # plot results
+
     if OptimM.SummaryPlots:
-        summary_SEDs(nvar, names, mcmc_results, mcmc_results_0, bestparams, chains,
-                     ASED, ZData, ZSetup)
+        nchains_4plots = Nit - burn_in
+        #if (nchains_4plots > 1000):
+        #    nchains_4plots=1000
+
+        summary_SEDs(nvar,
+                     names,
+                     ASED,
+                     ZData,
+                     ZSetup,
+                     CGbestparams=None,
+                     mcmc_results=mcmc_results,
+                     mcmc_bestparams=bestparams,
+                     mcmc_results_0=mcmc_results_0,
+                     chains=chains,
+                     nchains_4plots=nchains_4plots,
+                     DoubleArrow=False)
 
     return [names, mcmc_results, bestparams]
 
 
 def logL(ZData, ASED, ASED4alphas=False):
 
-    if (np.sum(ZData.sInus)==0):
-        chi2= np.array([0.])
+    if (np.sum(ZData.sInus) == 0):
+        chi2 = np.array([0.])
     else:
         chi2 = np.sum((ZData.Inus - ASED.Inus)**2 / ZData.sInus**2)
-        
+
     # print("chi2  = ", chi2, " dofs ", len(ZData.Inus))
     if ASED4alphas:
         npairs = int(len(ASED4alphas.nus) / 2)
@@ -463,6 +641,8 @@ class Data():
             sInus=None,  # standard deviation error 
             nu1s_alphas=None,
             Inu1s=None,
+            omega_beam=(np.pi / (4. * np.log(2))) *
+        (0.040 * np.pi / (180. * 3600.))**2,  # C10 B3 beam
             nu2s_alphas=None,
             nus_alphas=None,
             alphas=None,
@@ -497,6 +677,7 @@ class Data():
     def copy(self, AnotherData):
         self.__dict__.update(AnotherData.__dict__)
 
+
 class Merit():
 
     def __init__(
@@ -523,7 +704,7 @@ class Merit():
             time_end_1 = time()
             print("time for ASED calcul: ", time_end_1 - time_start, " s")
         ASED4alphas = False
-        if ZData.file_obsalphas:
+        if ZData.nus_alphas is not None:
             ASED4alphas = AModelSED.MSED(ZSetup)
             ASED4alphas.copy(ASED)
             ASED4alphas.nus = ZData.nus_alphas
@@ -548,6 +729,8 @@ class OptimM():
     def __init__(
             self,
             RunMCMC=False,
+            RunConjGrad=True,
+            CGmaxiter=100,
             MCMC_Nit=100,  #MCMC iterations
             nwalkers_pervar=10,
             burn_in=50,
@@ -558,6 +741,9 @@ class OptimM():
             Report=True,
             SummaryPlots=True,
             domain=[],
+            domain_CG=[],
+            domain_MCMC=[],
+            Inherit_Init=False, # loads init conditions from ASED 
             MCMCProgress=True,
             ######################################################################
             mcmc_results=[],
@@ -570,5 +756,9 @@ class OptimM():
             setattr(self, a_attribute, initlocals[a_attribute])
 
     def MCMC(self, ZSetup, ZData, ASED, ZMerit):
-        [names, mcmc_results, bestparams] = exec_emcee(self, ZSetup, ZData, ASED, ZMerit)
+        [names, mcmc_results, bestparams] = exec_emcee(self, ZSetup, ZData,
+                                                       ASED, ZMerit)
         return [names, mcmc_results, bestparams]
+
+    def ConjGrad(self, ZSetup, ZData, ASED, ZMerit):
+        return exec_ConjGrad(self, ZSetup, ZData, ASED, ZMerit)

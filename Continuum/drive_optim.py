@@ -29,7 +29,7 @@ ZSetup = AModelSED.Setup(
     VerboseInit=False,
     #outputdir='./output_dev_optim/')
     #outputdir='output_dev_optim_walphas/')
-    outputdir='output_optim_walphas_Nittrials/')
+    outputdir='output_optim_Nit10000_fluxcal0.01/')
     #outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
@@ -51,7 +51,7 @@ ZSED = AModelSED.MSED(
 ZSED.calcul()
 
 obsInus = ZSED.Inus.copy()
-fluxcal_accuracy = 0.1
+fluxcal_accuracy = 0.01
 AddNoise = False
 if AddNoise:
     for ifreq in range(len(obsInus)):
@@ -141,21 +141,44 @@ domain = [
      np.log10(50.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
 
-domain = [
-    ['log(Tdust)', np.log10(60.), [0., 3]],
+domain_Powell = [
+    ['log(Tdust)', np.log10(100.), [0., 3]],
+    #['q_dustexpo', -3.0, [-3.99, -2.]],
+    #['f_grain', 1., [0., 1.]],
+    #['log(amax)', np.log10(0.01), [np.log10(1E-3), np.log10(10.)]],  #cm
+    ['log(Sigma_g)',
+     np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]
+]  # g/cm2
+
+domain_MCMC = [
+    ['log(Tdust)', np.log10(100.), [0., 3]],
     ['q_dustexpo', -3.0, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(1), [np.log10(1E-3), np.log10(10.)]],  #cm
+    ['log(amax)', np.log10(0.01), [np.log10(1E-3), np.log10(10.)]],  #cm
     ['log(Sigma_g)',
-     np.log10(10.), [np.log10(1E-5), np.log10(1E3)]]
+     np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
 
 OptimM = SEDOptim.OptimM(
     RunMCMC=True,
     MCMC_Nit=1000,  #MCMC iterations
     nwalkers_pervar=10,
-    burn_in=200,
+    burn_in=800,
+    CGmaxiter=False,
     n_cores_MCMC=6,
-    domain=domain)
+    domain=domain,
+    domain_CG=domain_Powell,
+    domain_MCMC=domain_MCMC)
 
+#OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
+#OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
+#print("ASED.Tdust",ASED.Tdust)
+
+OptimM.domain=domain_Powell
+OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
+
+OptimM.Inherit_Init=True
+print("ASED.Tdust",ASED.Tdust)
+
+OptimM.domain=OptimM.domain_MCMC
 OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
