@@ -25,6 +25,12 @@ sys.path.append(include_path)
 
 import AModelSED
 
+if not sys.warnoptions:
+    import os, warnings
+    #warnings.simplefilter("default") # Change the filter in this process
+    warnings.simplefilter("ignore") # Change the filter in this process
+    #os.environ["PYTHONWARNINGS"] = "default" # Also affect subprocesses
+    os.environ["PYTHONWARNINGS"] = "ignore" # Also affect subprocesses
 
 def summary_SEDs(nvar,
                  names,
@@ -251,7 +257,7 @@ def lnprob(x_free, parnames, bnds, ZSetup, ZData, ASED, ZMerit):
 
 def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
                                 ZMerit, OptimM):
-    print("starting op.minimize")
+    #print("starting op.minimize")
     start_time = time()
     ftol = 1E-10  # 1e-10 too small leads to abnormal termination
     eps = []
@@ -576,8 +582,11 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         print("running final lnlike to set model to best L  values")
         ZSetup.filetag = 'mcmc_bestL_'
     final_lnlike = lnlike(bestparams, names, ZSetup, ZData, ASED, ZMerit)
+    modelInus=ASED.Inus
+    modelalphas=ASED.alphas
+    achi2=-2 * final_lnlike
     if OptimM.Report:
-        print("chi2 = %e" % (-2 * final_lnlike))
+        print("chi2 = %e" % (achi2x))
 
     ######################################################################
     # plot results
@@ -600,7 +609,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                      nchains_4plots=nchains_4plots,
                      DoubleArrow=False)
 
-    return [names, mcmc_results, bestparams]
+    return [names, mcmc_results, bestparams, modelInus, modelalphas, chi2]
 
 
 def logL(ZData, ASED, ASED4alphas=False):
@@ -757,9 +766,8 @@ class OptimM():
             setattr(self, a_attribute, initlocals[a_attribute])
 
     def MCMC(self, ZSetup, ZData, ASED, ZMerit):
-        [names, mcmc_results, bestparams] = exec_emcee(self, ZSetup, ZData,
-                                                       ASED, ZMerit)
-        return [names, mcmc_results, bestparams]
+        [names, mcmc_results, bestparams,  modelInus, modelalphas, achi2] = exec_emcee(self, ZSetup, ZData, ASED, ZMerit)
+        return [names, mcmc_results, bestparams,  modelInus, modelalphas]
 
     def ConjGrad(self, ZSetup, ZData, ASED, ZMerit):
         return exec_ConjGrad(self, ZSetup, ZData, ASED, ZMerit)

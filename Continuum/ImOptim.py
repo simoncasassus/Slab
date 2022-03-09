@@ -20,9 +20,9 @@ include_path = HOME + '/common/python/include'
 sys.path.append(include_path)
 
 import PyVtools.Vtools as Vtools
-from ImUtils.Resamp import gridding
-from ImUtils.Cube2Im import slice0
-from Gausssmooth import Gauss_filter
+#from ImUtils.Resamp import gridding
+#from ImUtils.Cube2Im import slice0
+#from Gausssmooth import Gauss_filter
 
 HOME = os.environ.get('HOME')
 include_path = HOME + '/gitcommon/Slab/Continuum/'
@@ -96,9 +96,9 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ASED=None, ZMerit=None):
         passout = [names, bestparams]
 
     OptimM.domain = OptimM.domain_MCMC
-    [names, mcmc_results, bestparams] = OptimM.MCMC(ZSetup, AData, ASED,
-                                                    ZMerit)
-    passout = [pos, names, mcmc_results, bestparams]
+    [names, mcmc_results, bestparams, modelInus,
+     modelalphas] = OptimM.MCMC(ZSetup, AData, ASED, ZMerit)
+    passout = [pos, names, mcmc_results, bestparams, modelInus, modelalphas]
     return passout
 
 
@@ -137,6 +137,8 @@ def exec_imoptim(OptimM,
                  mfreq_imhdus,
                  mfreq_specindexhdus,
                  n_cores_map=4,
+                 files_images=None,
+                 files_specindex=None,
                  omega_beams=[],
                  fluxcal_accuracy=[],
                  intraband_accuracy=0.008):
@@ -161,13 +163,22 @@ def exec_imoptim(OptimM,
     supimlogSigma_g = np.zeros(im_canvas.shape)
     sdoimlogSigma_g = np.zeros(im_canvas.shape)
 
+    modelimages = []
+    for ifreq in nfreqs:
+        amodelimage = np.zeros(im_canvas.shape)
+        modelimages.append(amodelimage)
+    modelspecindexs = []
+    for ispecindex in nspecindexs:
+        amodelspecindex = np.zeros(im_canvas.shape)
+        modelspecindexs.append(amodelspecindex)
+
     tasks = []
     nx, ny = im_canvas.shape
     for ix in range(nx):
         for iy in range(ny):
-            if not ((ix == 16) & (iy == 16)):
-                continue
-            print("ix ", ix, " iy ", iy)
+            #if not ((ix == 16) & (iy == 16)):
+            #    continue
+            #print("ix ", ix, " iy ", iy)
             Inus = []
             specindexes = []
             for ifreq in range(nfreqs):
@@ -210,6 +221,14 @@ def exec_imoptim(OptimM,
         names = alos[1]
         mcmc_results = alos[2]
         bestparams = alos[3]
+        modelInus = alos[4]
+        modelalphas = alos[5]
+
+        for ifreq in nfreqs:
+            modelimages[ifreq][ix, iy] = modelInus[ifreq]
+        for ispecindex in nspecindexs:
+            modelspecindexs[ispecindex][ix, iy] = modelalphas[ispecindex]
+
         for iparam, aname in enumerate(names):
             if 'Tdust' in aname:
                 imlogTdust[ix, iy] = bestparams[iparam]
@@ -227,6 +246,18 @@ def exec_imoptim(OptimM,
                 imlogSigma_g[ix, iy] = bestparams[iparam]
                 supimlogSigma_g[ix, iy] = mcmc_results[iparam][1]
                 sdoimlogSigma_g[ix, iy] = mcmc_results[iparam][2]
+
+    for ifreq in nfreqs:
+        datafile = os.path.basename(files_images[ifreq])
+        modelfile = re.sub('.fits', '_model.fits', datafile)
+        punchmap(modelimages[ifreq], hdu_canvas, fileout=outputdir + modelfile)
+
+    for ispecindex in nspecindexs:
+        datafile = os.path.basename(files_specindex[ispecindex])
+        modelfile = re.sub('.fits', '_model.fits', datafile)
+        punchmap(modelspecindexs[ispecindex],
+                 hdu_canvas,
+                 fileout=outputdir + modelfile)
 
     punchmap(imlogTdust, hdu_canvas, fileout=outputdir + 'imlogTdust.fits')
     punchmap(supimlogTdust,

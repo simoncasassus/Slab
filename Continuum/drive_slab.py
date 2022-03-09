@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 import cmath as cma
 # from time import time,gmtime, strftime
 import sys
-
+from time import time
 from astropy import constants as const
 
 HOME = os.environ.get('HOME')
@@ -50,10 +50,13 @@ ZSED = AModelSED.MSED(
     rho0=2.77,  # g/cm3
     N_asizes=40,
     nus=nus,
+    ExecTimeReport=False,
     GoNumba=True)
 
-for iter in range(100):
+for iter in range(3):
     print("iter",iter)
+    time_1=time()
     ZSED.calcul()
-    
+    time_2=time()
+    print("total execution time:",time_2-time_1,"s")
 ZSED.get_Plot()

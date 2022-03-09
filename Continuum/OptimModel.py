@@ -15,7 +15,7 @@ from astropy import constants as const
 c_MKS = const.c.value  # m/s
 
 
-def Plot_Opct(Opct,outputdir):
+def Plot_Opct(Opct, outputdir):
     plt.figure(figsize=(10, 4))
     plt.subplot(121)
     plt.plot(Opct[:, 0], Opct[:, 1])
@@ -32,10 +32,10 @@ def Plot_Opct(Opct,outputdir):
     plt.yscale('log')
 
     fileout = 'fig_optconstants.pdf'
-    plt.savefig(outputdir+fileout, bbox_inches='tight')
+    plt.savefig(outputdir + fileout, bbox_inches='tight')
 
 
-def Plot_Inu(nus, Inus,outputdir):
+def Plot_Inu(nus, Inus, outputdir):
     plt.figure(figsize=(10, 4))
     plt.plot(nus / 1E9, Inus, label=r'$I_\nu$')
     plt.plot(nus / 1E9, Inus[-1] * (nus / nus[-1])**2, label=r'$\nu^2$')
@@ -44,7 +44,7 @@ def Plot_Inu(nus, Inus,outputdir):
     #plt.xscale('log')
     plt.yscale('log')
     plt.legend()
-    fileout = outputdir+'fig_Inu.pdf'
+    fileout = outputdir + 'fig_Inu.pdf'
     plt.savefig(fileout, bbox_inches='tight')
 
 
@@ -146,7 +146,7 @@ class Setup():
         Opct = np.loadtxt(
             self.opct_file)  # mix of silicates, amorphous carbon and water ice
         if self.GenFigs:
-            Plot_Opct(Opct,self.outputdir)
+            Plot_Opct(Opct, self.outputdir)
         self.nf = interp1d(Opct[:, 0], Opct[:, 1], kind='cubic')
         self.kf = interp1d(Opct[:, 0], Opct[:, 2], kind='cubic')
 
