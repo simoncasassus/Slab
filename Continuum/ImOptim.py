@@ -4,6 +4,7 @@ import matplotlib
 from astropy.io import fits
 from copy import deepcopy
 from functools import partial
+import re
 
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
@@ -20,8 +21,8 @@ include_path = HOME + '/common/python/include'
 sys.path.append(include_path)
 
 import PyVtools.Vtools as Vtools
-#from ImUtils.Resamp import gridding
-#from ImUtils.Cube2Im import slice0
+from ImUtils.Resamp import gridding
+from ImUtils.Cube2Im import slice0
 #from Gausssmooth import Gauss_filter
 
 HOME = os.environ.get('HOME')
@@ -141,6 +142,7 @@ def exec_imoptim(OptimM,
                  files_specindex=None,
                  omega_beams=[],
                  fluxcal_accuracy=[],
+                 SingleLOS=None,
                  intraband_accuracy=0.008):
 
     nfreqs = len(mfreq_imhdus)
@@ -164,11 +166,11 @@ def exec_imoptim(OptimM,
     sdoimlogSigma_g = np.zeros(im_canvas.shape)
 
     modelimages = []
-    for ifreq in nfreqs:
+    for ifreq in range(nfreqs):
         amodelimage = np.zeros(im_canvas.shape)
         modelimages.append(amodelimage)
     modelspecindexs = []
-    for ispecindex in nspecindexs:
+    for ispecindex in range(nspecindexs):
         amodelspecindex = np.zeros(im_canvas.shape)
         modelspecindexs.append(amodelspecindex)
 
@@ -176,8 +178,11 @@ def exec_imoptim(OptimM,
     nx, ny = im_canvas.shape
     for ix in range(nx):
         for iy in range(ny):
-            #if not ((ix == 16) & (iy == 16)):
-            #    continue
+            #if not ((ix == 16) & (iy == 16)): local gap in Tdust
+            #if not ((ix == 12) & (iy == 12)): local ring in Tdust?
+            if SingleLOS is not None:
+                if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
+                    continue
             #print("ix ", ix, " iy ", iy)
             Inus = []
             specindexes = []
@@ -203,6 +208,7 @@ def exec_imoptim(OptimM,
     #        {'ZSetup': ZSetup,'ASED': ASED,'ZMerit': ZMerit}
 
     print("loaded all ", len(tasks), "tasks")
+    
     with Pool(n_cores_map) as pool:
         Pooloutput = list(
             tqdm(pool.imap(
@@ -224,9 +230,9 @@ def exec_imoptim(OptimM,
         modelInus = alos[4]
         modelalphas = alos[5]
 
-        for ifreq in nfreqs:
+        for ifreq in range(nfreqs):
             modelimages[ifreq][ix, iy] = modelInus[ifreq]
-        for ispecindex in nspecindexs:
+        for ispecindex in range(nspecindexs):
             modelspecindexs[ispecindex][ix, iy] = modelalphas[ispecindex]
 
         for iparam, aname in enumerate(names):
@@ -247,12 +253,12 @@ def exec_imoptim(OptimM,
                 supimlogSigma_g[ix, iy] = mcmc_results[iparam][1]
                 sdoimlogSigma_g[ix, iy] = mcmc_results[iparam][2]
 
-    for ifreq in nfreqs:
+    for ifreq in range(nfreqs):
         datafile = os.path.basename(files_images[ifreq])
         modelfile = re.sub('.fits', '_model.fits', datafile)
         punchmap(modelimages[ifreq], hdu_canvas, fileout=outputdir + modelfile)
 
-    for ispecindex in nspecindexs:
+    for ispecindex in range(nspecindexs):
         datafile = os.path.basename(files_specindex[ispecindex])
         modelfile = re.sub('.fits', '_model.fits', datafile)
         punchmap(modelspecindexs[ispecindex],

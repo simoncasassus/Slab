@@ -226,8 +226,8 @@ def lnlike(x_free, parnames, ZSetup, ZData, ASED, ZMerit):
     assignfreeparams(parnames, x_free, ASED)
 
     
-    chi2 = ZMerit.calcul(ZSetup, ZData, ASED)
-    chi2 = chi2.item()
+    chi2 = ZMerit.calcul(ZSetup, ZData, ASED)[0]
+    # chi2 = chi2.item()
     # if OptimM.PrintChi2s:
     # print("lnlike chi2 %e " % (chi2))
 
@@ -582,11 +582,12 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         print("running final lnlike to set model to best L  values")
         ZSetup.filetag = 'mcmc_bestL_'
     final_lnlike = lnlike(bestparams, names, ZSetup, ZData, ASED, ZMerit)
-    modelInus=ASED.Inus
-    modelalphas=ASED.alphas
-    achi2=-2 * final_lnlike
+    retvals=ZMerit.calcul(ZSetup, ZData, ASED)
+    achi2=retvals[0]
+    modelInus=retvals[1]
+    modelalphas=retvals[2]
     if OptimM.Report:
-        print("chi2 = %e" % (achi2x))
+        print("chi2 = %e" % (achi2))
 
     ######################################################################
     # plot results
@@ -609,7 +610,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                      nchains_4plots=nchains_4plots,
                      DoubleArrow=False)
 
-    return [names, mcmc_results, bestparams, modelInus, modelalphas, chi2]
+    return [names, mcmc_results, bestparams, modelInus, modelalphas, achi2]
 
 
 def logL(ZData, ASED, ASED4alphas=False):
@@ -619,6 +620,7 @@ def logL(ZData, ASED, ASED4alphas=False):
     else:
         chi2 = np.sum((ZData.Inus - ASED.Inus)**2 / ZData.sInus**2)
 
+    retvals=[chi2,ASED.Inus]
     # print("chi2  = ", chi2, " dofs ", len(ZData.Inus))
     if ASED4alphas:
         npairs = int(len(ASED4alphas.nus) / 2)
@@ -634,8 +636,10 @@ def logL(ZData, ASED, ASED4alphas=False):
         chi2_alphas = np.sum((ZData.alphas - alphas)**2 / ZData.salphas**2)
         # print("chi2_alphas  = ", chi2_alphas, " dofs ", len(ZData.alphas))
         chi2 += chi2_alphas
+        retvals.append(alphas)
     # print("chi2  = ", chi2)
-    return chi2
+    
+    return retvals
 
 
 class Data():
@@ -724,14 +728,15 @@ class Merit():
                 print("time for ASED4alphas calcul: ", time_end_2 - time_end_1,
                       " s")
 
-        chi2 = logL(ZData, ASED, ASED4alphas=ASED4alphas)
-
+        retvals = logL(ZData, ASED, ASED4alphas=ASED4alphas)
+        chi2=retvals[0]
+        
         if self.ExecTimeReport:
             time_end = time()
             print("total time for Likelihood evaluation: ",
                   time_end - time_start, " s")
 
-        return chi2
+        return retvals
 
 
 class OptimM():

@@ -122,6 +122,11 @@ domain_CG = [['log(Tdust)', np.log10(100.), [0., 3]],
 
 nvars = len(domain)
 print("nvars: ", nvars)
+SingleLOS=None
+SingleLOS=[12,12]
+SingleLOS=[16,16]
+
+Reportflags=SingleLOS is not None
 OptimM = SEDOptim.OptimM(
     RunConjGrad=True,
     RunMCMC=True,
@@ -129,15 +134,16 @@ OptimM = SEDOptim.OptimM(
     nwalkers_pervar=10,  # 10
     burn_in=200,  #100
     n_cores_MCMC=1,
-    ChainPlots=False,
-    CornerPlots=False,
-    Report=False,
-    MCMCProgress=False,
-    SummaryPlots=False,
+    ChainPlots=Reportflags,
+    CornerPlots=Reportflags,
+    Report=Reportflags,
+    MCMCProgress=Reportflags,
+    SummaryPlots=Reportflags,
     Inherit_Init=True,
     domain=domain,
     domain_CG=domain_CG,
     domain_MCMC=domain)
+
 
 ImOptim.exec_imoptim(OptimM,
                      ZSetup,
@@ -147,9 +153,10 @@ ImOptim.exec_imoptim(OptimM,
                      hdu_canvas,
                      mfreq_imhdus,
                      mfreq_specindexhdus,
-                     n_cores_map=38,
+                     n_cores_map=1,
                      files_images=files_images,
                      files_specindex=files_specindex,
+                     SingleLOS=SingleLOS,
                      omega_beams=omega_beams,
                      fluxcal_accuracy=fluxcal_accuracy,
                      intraband_accuracy=0.008)

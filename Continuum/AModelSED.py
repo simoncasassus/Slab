@@ -238,10 +238,17 @@ class Setup():
             ClearOutputDir=False,
             nf=None,
             kf=None,
+            #log_a_sizes_4interp=None,
+            GoInterp=False,
+            amax_4grid=10,  #cm
             GenFigs=True,
             opct_file='opct_mix.txt',
             VerboseInit=False,
-            outputdir='./output_dev/'):
+            use_Kataoka=True,  # 4 grids
+            outputdir='./output_dev/',
+            ######################################################################
+            kappa_as_abs_4interp=None,
+            kappa_as_scat_4interp=None):
 
         initlocals = locals()
         initlocals.pop('self')
@@ -263,15 +270,15 @@ class MSED(Setup):
             Tdust=30.,
             q_dustexpo=-3.5,
             f_grain=1.,  # grain filling factor
-            amin=1E-3,  # cm
+            amin=1E-4,  # cm
             amax=1.,  # cm, maximum grain size
             Sigma_g=0.5,  # g/cm2
             gtod_ratio=100.,
             rho0=2.77,  # g/cm3
-            N_asizes=40,
+            N_asizes=40,  #if ZSetup.GoInterp  then N_asizes should be set to the grid
             nus=[],
             ExecTimeReport=False,
-            GoNumba=True,
+            GoNumba=False,
             ######################################################################
             Inus=[],
             Sigma_d=0,
@@ -281,6 +288,7 @@ class MSED(Setup):
             N_freqs=0,
             kappa_as_abs=None,
             kappa_as_scat=None,
+            ilogamax=None,
             tau_abs=None,
             tau_scat=None,
             tau=None,
@@ -297,16 +305,50 @@ class MSED(Setup):
 
         self.__dict__.update(ASetup.__dict__)
 
+        if self.GoInterp:
+            if self.kappa_as_abs_4interp is None:
+                GoNumba = self.GoNumba
+                if ASetup.use_Kataoka:
+                    print("computing opacity grid using Kataoka formulae")
+                    self.GoNumba = True
+                    self.GoInterp = False
+                    amax=self.amax
+                    self.amax = self.amax_4grid
+                    self.calcul()
+                    ASetup.kappa_as_abs_4interp = self.kappa_as_abs
+                    ASetup.kappa_as_scat_4interp = self.kappa_as_scat
+                    self.kappa_as_abs_4interp = self.kappa_as_abs
+                    self.kappa_as_scat_4interp = self.kappa_as_scat
+                    self.GoNumba = GoNumba
+                    self.GoInterp = True
+                    self.amax = amax
+                else:
+                    if os.path.exists(outputdir + 'allkappa_as_scat.npy'):
+                        self.kappa_as_abs_4interp = np.load(
+                            self.outputdir + 'allkappa_as_abs.npy')
+                        self.kappa_as_scat_4interp = np.load(
+                            self.outputdir + 'allkappa_as_scat.npy')
+                        self.log_a_sizes_4interp = np.load(outputdir +
+                                                           'logasizes.npy')
+                    else:
+                        sys.exit("compute grids first")
+
     def prep(self):
         self.N_freqs = len(self.nus)
         self.Sigma_d = self.Sigma_g / self.gtod_ratio
-        self.a_sizes = np.logspace(np.log10(self.amin), np.log10(self.amax),
-                                   self.N_asizes)
+        #self.a_sizes = np.logspace(np.log10(self.amin), np.log10(self.amax),
+        #                           self.N_asizes)
+
+        if not self.GoInterp:
+            loga_sizes = (np.log10(self.amax) - np.log10(self.amin)) * (
+                np.arange(self.N_asizes) / self.N_asizes) + np.log10(self.amin)
+            self.a_sizes = 10**(loga_sizes)
+            
 
     def copy(self, AnotherSED):
         self.__dict__.update(AnotherSED.__dict__)
 
-    def get_Sigma_as(self):
+    def get_Sigma_as(self): DEV DEV DEV 
         fas = np.zeros(
             self.N_asizes)  # Surface density for different dust sizes
         for i in range(self.N_asizes):
@@ -343,6 +385,17 @@ class MSED(Setup):
         self.kappa_as_abs = kappa_as_abs
         self.kappa_as_scat = kappa_as_scat
 
+    def get_kappa_as_interp(self):
+
+        logamax = np.log10(self.amax)
+        dlogas = (np.log10(self.amax_4grid) -
+                  np.log10(self.amin)) / self.N_asizes
+        ilogamax = int((logamax - np.log10(self.amin)) / dlogas)
+
+        self.kappa_as_abs = self.kappa_as_abs_4interp
+        self.kappa_as_scat = self.kappa_as_scat_4interp
+        self.ilogamax = ilogamax + 1
+
     def get_kappa_as_numba(self):
 
         kappa_as_abs = np.zeros(
@@ -377,11 +430,17 @@ class MSED(Setup):
         omega_nu = np.zeros(self.N_freqs)
         epsilon_nu = np.zeros(self.N_freqs)
 
+        ilogamax = len(self.Sigma_as)
+
+        if self.GoInterp:
+            ilogamax = self.ilogamax
+
+        # print("ilogamax", ilogamax, "N_freqs", self.N_freqs)
         for ifreq in range(self.N_freqs):
-            tau_abs[ifreq] = np.sum(self.Sigma_as[:] *
-                                    (self.kappa_as_abs[:, ifreq]))
-            tau_scat[ifreq] = np.sum(self.Sigma_as[:] *
-                                     (self.kappa_as_scat[:, ifreq]))
+            tau_abs[ifreq] = np.sum(self.Sigma_as[:ilogamax] *
+                                    (self.kappa_as_abs[:ilogamax, ifreq]))
+            tau_scat[ifreq] = np.sum(self.Sigma_as[:ilogamax] *
+                                     (self.kappa_as_scat[:ilogamax, ifreq]))
             tau[ifreq] = tau_scat[ifreq] + tau_abs[ifreq]
             kappa_abs[ifreq] = tau_abs[ifreq] / self.Sigma_g
             kappa_scat[ifreq] = tau_scat[ifreq] / self.Sigma_g
@@ -411,14 +470,23 @@ class MSED(Setup):
         self.Inus = Inus
 
     def calcul(self):
+        if self.ExecTimeReport:
+            time_00 = time()
         self.prep()
+        if self.ExecTimeReport:
+            time_0 = time()
+            print("time for prep::", time_0 - time_00, " s")
         self.get_Sigma_as()
         if self.ExecTimeReport:
             time_1 = time()
-        if self.GoNumba:
+            print("time for get_Sigma_as::", time_1 - time_0, " s")
+        if self.GoInterp:
+            self.get_kappa_as_interp()  # 
+            #print("GoInterp self.ilogamax", self.ilogamax)
+        elif self.GoNumba:
             self.get_kappa_as_numba()
         else:
-            self.get_kappa_as()           
+            self.get_kappa_as()  # 
         if self.ExecTimeReport:
             time_2 = time()
             print("time for get_kappa_as :", time_2 - time_1, " s")
@@ -427,18 +495,23 @@ class MSED(Setup):
             time_3 = time()
             print("time for get_taus_and_kappas :", time_3 - time_2, " s")
         self.get_Inus()
+        if self.ExecTimeReport:
+            time_4 = time()
+            print("time for get_Inus :", time_4 - time_3, " s")
 
     def get_Plot(self):
         # omega_beam = np.pi * (0.05 * np.pi / (180. * 3600.))**2 # Baobab's brick
-        omega_beam = (np.pi/(4.*np.log(2))) * (0.040 * np.pi / (180. * 3600.))**2 # C10 B3 beam
+        omega_beam = (np.pi /
+                      (4. * np.log(2))) * (0.040 * np.pi /
+                                           (180. * 3600.))**2  # C10 B3 beam
         BB = Bnu_Jy(self.nus, self.Tdust)
         #overplots=[ [self.nus,omega_beam*BB,'BB']]
-        overplots = [[self.nus, omega_beam*BB, 'BB']]
+        overplots = [[self.nus, omega_beam * BB, 'BB']]
         print("minimum BB/Inu:", min(BB / self.Inus))
         print("maximum tau:", max(self.tau))
         print("minimum tau:", min(self.tau))
         #Plot_Inu(self.nus, self.Inus * omega_beam, overplots=overplots, outputdir=self.outputdir)
         Plot_Inu(self.nus,
-                 omega_beam*self.Inus,
+                 omega_beam * self.Inus,
                  overplots=overplots,
                  outputdir=self.outputdir)
