@@ -170,7 +170,7 @@ OptimM = SEDOptim.OptimM(
     nwalkers_pervar=10,
     burn_in=800,
     CGmaxiter=False,
-    n_cores_MCMC=6,
+    n_cores_MCMC=4,
     domain=domain,
     domain_CG=domain_Powell,
     domain_MCMC=domain_MCMC)
@@ -180,10 +180,15 @@ OptimM = SEDOptim.OptimM(
 #print("ASED.Tdust",ASED.Tdust)
 
 OptimM.domain=domain_Powell
-OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
+#OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
 
 #OptimM.Inherit_Init=True
 #print("ASED.Tdust",ASED.Tdust)
 
-#OptimM.domain=OptimM.domain_MCMC
-#OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
+OptimM.domain=OptimM.domain_MCMC
+[names, mcmc_results, bestparams,  modelInus, modelalphas]=OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
+print("names",names)
+print("mcmc_results",mcmc_results)
+print("bestparams",bestparams)
+print("modelInus",modelInus)
+print("modelalphas",modelalphas)

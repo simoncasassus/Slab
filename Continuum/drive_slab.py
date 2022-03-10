@@ -25,9 +25,10 @@ ZSetup = AModelSED.Setup(
     nf=None,
     kf=None,
     GenFigs=True,
-    GoInterp=True,
+    GoInterp=False,
     opct_file='opct_mix.txt',
     VerboseInit=False,
+    #outputdir='./output_grids_interp/')
     outputdir='./output_grids/')
 
 #ZSetup.prep()
@@ -47,7 +48,7 @@ ZSED = AModelSED.MSED(
     f_grain=1.,  # grain filling factor
     amin=1E-4,  # cm
     amax=1.,  # cm, maximum grain size
-    Sigma_g=100. * 0.5,  # g/cm2
+    Sigma_g=1. * 0.5,  # g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=1000,
@@ -76,4 +77,4 @@ ZSED.calcul()
 time_2 = time()
 print("total execution time:", time_2 - time_1, "s")
 
-# ZSED.get_Plot()
+ZSED.get_Plot()

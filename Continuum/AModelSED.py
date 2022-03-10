@@ -166,6 +166,22 @@ def get_kappa_as_numba_kernel(nlambdas, lambdas, nfs, kfs, rhoi, N_asizes,
                           j] = f_kappa_scat_numba(nfs[j], kfs[j], a_asize,
                                                   lambdas[j], rhoi, f_grain)
 
+@jit(nopython=True)
+def get_taus_and_kappas_numba_kernel(Sigma_g,N_freqs,ilogamax,Sigma_as,kappa_as_abs,kappa_as_scat,tau,tau_abs,tau_scat,kappa_abs,kappa_scat, omega_nu, epsilon_nu):
+    for ifreq in range(N_freqs):
+        tau_abs[ifreq] = 0.
+        tau_scat[ifreq] = 0.
+        for isize in range(ilogamax):
+            tau_abs[ifreq] += Sigma_as[isize] * (kappa_as_abs[isize, ifreq])
+            tau_scat[ifreq] += Sigma_as[isize] * (kappa_as_scat[isize, ifreq])
+            
+        tau[ifreq] = tau_scat[ifreq] + tau_abs[ifreq]
+        kappa_abs[ifreq] = tau_abs[ifreq] / Sigma_g
+        kappa_scat[ifreq] = tau_scat[ifreq] / Sigma_g
+        
+        omega_nu[ifreq] = tau_scat[ifreq] / (tau_scat[ifreq] +
+                                             tau_abs[ifreq])
+        epsilon_nu[ifreq] = 1.0 - omega_nu[ifreq]
 
 def f_kappa_scat(nf, kf, a, lam, rho, f):
     # Kataoka+2014
@@ -222,6 +238,8 @@ class Setup():
             os.system("rm -rf " + self.outputdir)
         os.system("mkdir " + self.outputdir)
 
+
+        
     def load_Opct(self):
         Opct = np.loadtxt(
             self.opct_file)  # mix of silicates, amorphous carbon and water ice
@@ -248,7 +266,9 @@ class Setup():
             outputdir='./output_dev/',
             ######################################################################
             kappa_as_abs_4interp=None,
-            kappa_as_scat_4interp=None):
+            kappa_as_scat_4interp=None,
+            kappa_as_abs=None,
+            kappa_as_scat=None):
 
         initlocals = locals()
         initlocals.pop('self')
@@ -286,6 +306,8 @@ class MSED(Setup):
             Sigma_as=[],
             lambdas=[],
             N_freqs=0,
+            nfs=None,
+            kfs=None,
             kappa_as_abs=None,
             kappa_as_scat=None,
             ilogamax=None,
@@ -304,6 +326,8 @@ class MSED(Setup):
             setattr(self, a_attribute, initlocals[a_attribute])
 
         self.__dict__.update(ASetup.__dict__)
+
+        self.lambdas = 1E2 * c_MKS / self.nus  # wavelengths in cm
 
         if self.GoInterp:
             if self.kappa_as_abs_4interp is None:
@@ -332,36 +356,67 @@ class MSED(Setup):
                                                            'logasizes.npy')
                     else:
                         sys.exit("compute grids first")
+            
+
+        #if self.nfs is None:
+        #    print("initialize nfs kfs")
+        #    lambdas = self.lambdas
+        #    self.nfs = self.nf(lambdas * 1.0e4)
+        #    self.kfs = self.kf(lambdas * 1.0e4)
+
+            
 
     def prep(self):
         self.N_freqs = len(self.nus)
         self.Sigma_d = self.Sigma_g / self.gtod_ratio
         #self.a_sizes = np.logspace(np.log10(self.amin), np.log10(self.amax),
         #                           self.N_asizes)
+        if self.nfs is None:
+            print("initialize nfs kfs")
+            lambdas = self.lambdas
+            self.nfs = self.nf(lambdas * 1.0e4)
+            self.kfs = self.kf(lambdas * 1.0e4)
 
         if not self.GoInterp:
             loga_sizes = (np.log10(self.amax) - np.log10(self.amin)) * (
                 np.arange(self.N_asizes) / self.N_asizes) + np.log10(self.amin)
             self.a_sizes = 10**(loga_sizes)
             
+        if self.kappa_as_abs is None:
+            print("initializae kappa_as arrays")
+            self.kappa_as_abs = np.zeros(
+                (self.N_asizes, self.N_freqs
+                 ))  # opacities for different grain sizes and wavelengths
+            self.kappa_as_scat = np.zeros(
+                (self.N_asizes, self.N_freqs
+                 ))  # opacities for different grain sizes and wavelengths
 
     def copy(self, AnotherSED):
         self.__dict__.update(AnotherSED.__dict__)
 
-    def get_Sigma_as(self): DEV DEV DEV 
-        fas = np.zeros(
-            self.N_asizes)  # Surface density for different dust sizes
-        for i in range(self.N_asizes):
-            if i == 0:
-                fas[i] = self.a_sizes[i]**(self.q_dustexpo + 4.)
-            else:
-                fas[i] = self.a_sizes[i]**(self.q_dustexpo +
-                                           4.) - self.a_sizes[i - 1]**(
-                                               self.q_dustexpo + 4.)
+    def get_Sigma_as(self):
+        
+        #fas = np.zeros(
+        #    self.N_asizes)  # Surface density for different dust sizes
+        #for i in range(self.N_asizes):
+        #    if i == 0:
+        #        fas[i] = self.a_sizes[i]**(self.q_dustexpo + 4.)
+        #    else:
+        #        fas[i] = self.a_sizes[i]**(self.q_dustexpo +
+        #                                   4.) - self.a_sizes[i - 1]**(
+        #                                       self.q_dustexpo + 4.)
+        
+        ilogamax = len(self.a_sizes)
 
+        if self.GoInterp:
+            ilogamax = self.ilogamax
+        fas2 = self.a_sizes[0:ilogamax]**(self.q_dustexpo+4)
+        fas1 = np.roll(fas2,1)
+        fas=fas2-fas1
+        fas[0]=self.a_sizes[0]**(self.q_dustexpo + 4.)
+                
         self.Sigma_as = fas * self.Sigma_d / np.sum(fas)
 
-        self.lambdas = 1E2 * c_MKS / self.nus  # wavelengths in cm
 
     def get_kappa_as(self):
         kappa_as_abs = np.zeros(
@@ -397,28 +452,27 @@ class MSED(Setup):
         self.ilogamax = ilogamax + 1
 
     def get_kappa_as_numba(self):
+        #kappa_as_abs = np.zeros(
+        #    (self.N_asizes, self.N_freqs
+        #     ))  # opacities for different grain sizes and wavelengths
+        #kappa_as_scat = np.zeros(
+        #    (self.N_asizes, self.N_freqs
+        #     ))  # opacities for different grain sizes and wavelengths
 
-        kappa_as_abs = np.zeros(
-            (self.N_asizes, self.N_freqs
-             ))  # opacities for different grain sizes and wavelengths
-        kappa_as_scat = np.zeros(
-            (self.N_asizes, self.N_freqs
-             ))  # opacities for different grain sizes and wavelengths
+
         rhoi = self.rho0 * self.f_grain
 
         #lam = self.lambdas[j]
         #nf0 = self.nf(lam * 1.0e4)
         #kf0 = self.kf(lam * 1.0e4)
-        lambdas = self.lambdas
-        nfs = self.nf(lambdas * 1.0e4)
-        kfs = self.kf(lambdas * 1.0e4)
 
-        get_kappa_as_numba_kernel(len(lambdas), lambdas, nfs, kfs, rhoi,
-                                  self.N_asizes, self.a_sizes, kappa_as_abs,
-                                  kappa_as_scat, self.f_grain)
+        
+        get_kappa_as_numba_kernel(len(self.lambdas), self.lambdas, self.nfs, self.kfs, rhoi,
+                                  self.N_asizes, self.a_sizes, self.kappa_as_abs,
+                                  self.kappa_as_scat, self.f_grain)
 
-        self.kappa_as_abs = kappa_as_abs
-        self.kappa_as_scat = kappa_as_scat
+        #self.kappa_as_abs = kappa_as_abs
+        #self.kappa_as_scat = kappa_as_scat
 
     def get_taus_and_kappas(self):
 
@@ -430,7 +484,8 @@ class MSED(Setup):
         omega_nu = np.zeros(self.N_freqs)
         epsilon_nu = np.zeros(self.N_freqs)
 
-        ilogamax = len(self.Sigma_as)
+        #ilogamax = len(self.Sigma_as)
+        ilogamax = len(self.a_sizes)
 
         if self.GoInterp:
             ilogamax = self.ilogamax
@@ -457,6 +512,35 @@ class MSED(Setup):
         self.omega_nu = omega_nu
         self.epsilon_nu = epsilon_nu
 
+
+            
+
+    def get_taus_and_kappas_numba(self):
+
+        tau = np.zeros(self.N_freqs)
+        tau_abs = np.zeros(self.N_freqs)
+        tau_scat = np.zeros(self.N_freqs)
+        kappa_abs = np.zeros(self.N_freqs)
+        kappa_scat = np.zeros(self.N_freqs)
+        omega_nu = np.zeros(self.N_freqs)
+        epsilon_nu = np.zeros(self.N_freqs)
+
+        #ilogamax = len(self.Sigma_as)
+        ilogamax = len(self.a_sizes)
+
+        if self.GoInterp:
+            ilogamax = self.ilogamax
+
+        get_taus_and_kappas_numba_kernel(self.Sigma_g,self.N_freqs,ilogamax,self.Sigma_as,self.kappa_as_abs,self.kappa_as_scat,tau,tau_abs,tau_scat,kappa_abs,kappa_scat, omega_nu, epsilon_nu)
+                                         
+        self.tau = tau
+        self.tau_abs = tau_abs
+        self.tau_scat = tau_scat
+        self.kappa_abs = kappa_abs
+        self.kappa_scat = kappa_scat
+        self.omega_nu = omega_nu
+        self.epsilon_nu = epsilon_nu
+
     def get_Inus(self):
         Inus = np.zeros(self.N_freqs)
 
@@ -464,6 +548,7 @@ class MSED(Setup):
         #    Inus[ifreq] = Bnu_Jy(self.nus[ifreq],
         #                         self.Tdust) * Inu_Bnu_unifslab_direct(
         #                             self.tau[ifreq], self.epsilon_nu[ifreq])
+        
         Inus = Bnu_Jy(self.nus, self.Tdust) * Inu_Bnu_unifslab_direct(
             self.tau, self.epsilon_nu)
 
@@ -490,7 +575,10 @@ class MSED(Setup):
         if self.ExecTimeReport:
             time_2 = time()
             print("time for get_kappa_as :", time_2 - time_1, " s")
-        self.get_taus_and_kappas()
+        if self.GoNumba:
+            self.get_taus_and_kappas_numba()
+        else:
+            self.get_taus_and_kappas()
         if self.ExecTimeReport:
             time_3 = time()
             print("time for get_taus_and_kappas :", time_3 - time_2, " s")
