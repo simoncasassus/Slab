@@ -185,6 +185,7 @@ OptimM.domain=domain_Powell
 #OptimM.Inherit_Init=True
 #print("ASED.Tdust",ASED.Tdust)
 
+OptimM.SummaryPlots=False
 OptimM.domain=OptimM.domain_MCMC
 [names, mcmc_results, bestparams,  modelInus, modelalphas]=OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
 print("names",names)
