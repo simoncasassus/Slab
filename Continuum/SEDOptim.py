@@ -18,6 +18,7 @@ from multiprocessing import Pool
 from astropy import constants as const
 
 c_MKS = const.c.value  # m/s
+k_B = const.k_B.value
 
 HOME = os.environ.get('HOME')
 include_path = HOME + '/gitcommon/Slab/Continuum/'
@@ -28,9 +29,10 @@ import AModelSED
 if not sys.warnoptions:
     import os, warnings
     #warnings.simplefilter("default") # Change the filter in this process
-    warnings.simplefilter("ignore") # Change the filter in this process
+    warnings.simplefilter("ignore")  # Change the filter in this process
     #os.environ["PYTHONWARNINGS"] = "default" # Also affect subprocesses
-    os.environ["PYTHONWARNINGS"] = "ignore" # Also affect subprocesses
+    os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect subprocesses
+
 
 def summary_SEDs(nvar,
                  names,
@@ -75,7 +77,7 @@ def summary_SEDs(nvar,
                 value = 10**(value)
                 maxLvalue = 10**(maxLvalue)
             Ztitle_maxL = Ztitle_maxL + name + r'= %.1f ' % (maxLvalue)
-            Ztitle_mcmc = Ztitle_mcmc + name + r'= %.1f+$^{+%.1f}_{-%.1f}$ ' % (
+            Ztitle_mcmc = Ztitle_mcmc + name + r'= %.1f$^{+%.1f}_{-%.1f}$ ' % (
                 value, uperror, downerror)
 
     N_freqs = 100
@@ -84,7 +86,7 @@ def summary_SEDs(nvar,
     lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
     nus = 10**lognus
     ASED.nus = nus
-    ASED.calcul()
+    ASED.calcul(ForcePrep=True)
 
     Inorm = (ASED.nus / 100E9)**2
     plt.figure(figsize=(10, 4))
@@ -105,7 +107,7 @@ def summary_SEDs(nvar,
             ASEDparams.calcul()
             plt.plot(ASEDparams.nus / 1E9,
                      ZData.omega_beam * ASEDparams.Inus / Inorm,
-                     alpha=0.01,
+                     alpha=0.002,
                      lw=0.5,
                      zorder=-32,
                      color='grey')
@@ -221,12 +223,12 @@ def assignfreeparams(parnames, values, ASED):
         setattr(ASED, aname, avalue)
 
 
-def lnlike(x_free, parnames, ZSetup, ZData, ASED, ZMerit):
+def lnlike(x_free, parnames, ZSetup, ZData, ASED, ASED4alphas, ZMerit):
 
     assignfreeparams(parnames, x_free, ASED)
 
-    
-    chi2 = ZMerit.calcul(ZSetup, ZData, ASED)[0]
+    chi2 = ZMerit.calcul(ZSetup, ZData, ASED, ASED4alphas=ASED4alphas)[0]
+
     # chi2 = chi2.item()
     # if OptimM.PrintChi2s:
     # print("lnlike chi2 %e " % (chi2))
@@ -248,11 +250,12 @@ def lnprior(theta, bnds):
         return -np.inf
 
 
-def lnprob(x_free, parnames, bnds, ZSetup, ZData, ASED, ZMerit):
+def lnprob(x_free, parnames, bnds, ZSetup, ZData, ASED, ASED4alphas, ZMerit):
     lp = lnprior(x_free, bnds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + lnlike(x_free, parnames, ZSetup, ZData, ASED, ZMerit)
+    return lp + lnlike(x_free, parnames, ZSetup, ZData, ASED, ASED4alphas,
+                       ZMerit)
 
 
 def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
@@ -270,7 +273,15 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
     nll = lambda *args: -lnlike(*args)
     x_free_init = x_free.copy()
 
-    init_lnlike = lnlike(x_free_init, names, ZSetup, ZData, ASED, ZMerit)
+    ASED4alphas = None
+    if ZData.nus_alphas:
+        ASED4alphas = AModelSED.MSED(ZSetup)
+        ASED4alphas.copy(ASED)
+        ASED4alphas.nus = ZData.nus_alphas
+        ASED4alphas.calcul(ForcePrep=True)
+
+    init_lnlike = lnlike(x_free_init, names, ZSetup, ZData, ASED, ASED4alphas,
+                         ZMerit)
     if OptimM.Report:
         print("init_chi2 %e" % (-2. * init_lnlike))
     options = {'eps': eps}
@@ -284,17 +295,19 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
         bounds=bnds,
         method='Powell',  #  'Powell' Nelder-Mead
         options=options,
-        args=(names, ZSetup, ZData, ASED, ZMerit))
+        args=(names, ZSetup, ZData, ASED, ASED4alphas, ZMerit))
     result_ml = result["x"]
     if OptimM.Report:
         print("result", result)
         print("Optim done in (elapsed time):", time() - start_time)
         print("Delta params", result_ml - x_free_init)
 
-    init_lnlike2 = lnlike(x_free_init, names, ZSetup, ZData, ASED, ZMerit)
+    init_lnlike2 = lnlike(x_free_init, names, ZSetup, ZData, ASED, ASED4alphas,
+                          ZMerit)
     if OptimM.Report:
         print("init chi2 xcheck   %e" % (-2. * init_lnlike2))
-    best_lnlike = lnlike(result_ml, names, ZSetup, ZData, ASED, ZMerit)
+    best_lnlike = lnlike(result_ml, names, ZSetup, ZData, ASED, ASED4alphas,
+                         ZMerit)
     if OptimM.Report:
         print("best_chi2 %e" % (-2. * best_lnlike))
 
@@ -323,19 +336,18 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     if OptimM.Inherit_Init:
         for iname, aname in enumerate(names):
-            aname_4value=aname
+            aname_4value = aname
             m = re.search('log\((.*)\)', aname)
-            dolog=False
+            dolog = False
             if m:
                 dolog = True
                 aname_4value = m.group(1)
-            value=getattr(ASED, aname_4value)
+            value = getattr(ASED, aname_4value)
             if dolog:
-                value=np.log10(value)
+                value = np.log10(value)
             sample_params[iname] = value
             if OptimM.Report:
                 print("Inherit_Init: ", aname, sample_params[iname])
-
 
     if OptimM.Report:
         print("nvar = ", nvar)
@@ -368,6 +380,19 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
     return names, result_ml
 
 
+def Tbrightness(I_nu, nu):
+    # input I_nu in Jy/srx
+    # input nu in Hz
+    if (I_nu < 0.):
+        Tb = 1.
+    else:
+        h_P = const.h.value
+        k_B = const.k_B.value
+        c_light = const.c.value
+        Tb = h_P * nu / (k_B * np.log(1. + (2. * h_P * nu**3 /
+                                            (c_light**2 * I_nu * 1E-26))))
+
+    return Tb
 
 
 def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
@@ -382,17 +407,69 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     bnds = list(map((lambda x: x[2]), OptimM.domain))
     nvar = len(list(names))
 
+    #initial conditions
+    Tdust_init = 3.
+    Sigma_g_init = 10.
+    for iname, aname in enumerate(names):
+        m = re.search('log\((.*)\)', aname)
+        dolog = False
+        if m:
+            dolog = True
+        if 'Tdust' in aname:
+            inu_highest = np.argmax(ZData.nus)
+            nu_highest = ZData.nus[inu_highest]
+            Inu_highest = ZData.Inus[inu_highest]
+            if Inu_highest > 0.:
+                Tdust_init = Tbrightness(Inu_highest, nu_highest)
+            if OptimM.Report:
+                print("Tdust_init", Tdust_init)
+                ASED.Tdust_0=Sigma_g_init
+            if OptimM.PhysicalInit and (Inu_highest > 0):
+                if dolog:
+                    sample_params[iname] = np.log10(Tdust_init)
+                else:
+                    sample_params[iname] = Tdust_init
+
+    for iname, aname in enumerate(names):
+        m = re.search('log\((.*)\)', aname)
+        dolog = False
+        if m:
+            dolog = True
+        if 'Sigma_g' in aname:
+            beta = 1
+            inu_lowest = np.argmax(ZData.nus)
+            nu_lowest = ZData.nus[inu_lowest]
+            Inu_lowest = ZData.Inus[inu_lowest]
+            #  (0.02 cm^2/g / kappa_1.3mm)
+
+            kappa_nu = 0.02 * (nu_lowest / 230609583076.92312)**beta
+            #cm2 / g , Becwith
+
+            # RJ = (2. * k_B * nu_lowest**2 / c_light**2) Tb
+            # I = RJ * tau
+            tau0 = Inu_lowest * 1E-26 / (
+                (2. * k_B * nu_lowest**2 / c_MKS**2) * Tdust_init)
+            Sigma_g_init = tau0 / kappa_nu
+            if OptimM.Report:
+                print("Sigma_g_init", Sigma_g_init)
+                ASED.Sigma_g_0=Sigma_g_init
+            if OptimM.PhysicalInit and (Inu_lowest > 0):
+                if dolog:
+                    sample_params[iname] = np.log10(Sigma_g_init)
+                else:
+                    sample_params[iname] = Sigma_g_init
+
     if OptimM.Inherit_Init:
         for iname, aname in enumerate(names):
-            aname_4value=aname
+            aname_4value = aname
             m = re.search('log\((.*)\)', aname)
-            dolog=False
+            dolog = False
             if m:
                 dolog = True
                 aname_4value = m.group(1)
-            value=getattr(ASED, aname_4value)
+            value = getattr(ASED, aname_4value)
             if dolog:
-                value=np.log10(value)
+                value = np.log10(value)
             sample_params[iname] = value
             if OptimM.Report:
                 print("Inherit_Init: ", aname, sample_params[iname])
@@ -405,7 +482,16 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     if OptimM.Report:
         print("check initial chi2 value")
-    init_lnlike = lnlike(x_free, names, ZSetup, ZData, ASED, ZMerit)
+
+    ASED4alphas = None
+    if ZData.nus_alphas is not None:
+        ASED4alphas = AModelSED.MSED(ZSetup)
+        ASED4alphas.copy(ASED)
+        ASED4alphas.nus = ZData.nus_alphas
+        ASED4alphas.calcul(ForcePrep=True)
+        
+    init_lnlike = lnlike(x_free, names, ZSetup, ZData, ASED, ASED4alphas,
+                         ZMerit)
     if OptimM.Report:
         print("init lnlike  = %e " % (init_lnlike))
         print("chi2 = %e " % (-2 * init_lnlike))
@@ -425,8 +511,9 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        awalkerinit = sample_params + (1e-2 * np.random.randn(ndim) *
-                                       allowed_ranges)
+        #awalkerinit = sample_params + (1e-2 * np.random.randn(ndim) *
+        #                               allowed_ranges)
+        awalkerinit = sample_params + (np.random.randn(ndim) * allowed_ranges)
 
         for j in list(range(ndim)):
             lowerlimit = bnds[j][0]
@@ -448,7 +535,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                   nwalkers, " and ncores", n_cores)
 
         start = time()
-        lnprobargs = [names, bnds, ZSetup, ZData, ASED, ZMerit]
+        lnprobargs = [names, bnds, ZSetup, ZData, ASED, ASED4alphas, ZMerit]
         if n_cores > 1:
             with Pool(n_cores) as pool:
                 sampler = emcee.EnsembleSampler(nwalkers,
@@ -512,6 +599,15 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         lnpchain2[:, j] = lnprobs[j, iplot_burn_in:].reshape(
             ((Nit - iplot_burn_in)), order='c')
 
+    iplot_burn_in = burn_in
+    chains3 = np.zeros((Nit - iplot_burn_in, nwalkers, ndim))
+    lnpchain3 = np.zeros(((Nit - iplot_burn_in), nwalkers))
+    for j in list(range(nwalkers)):
+        chains3[:, j, :] = samples[j, iplot_burn_in:, :].reshape(
+            (Nit - iplot_burn_in, ndim), order='c')
+        lnpchain3[:, j] = lnprobs[j, iplot_burn_in:].reshape(
+            ((Nit - iplot_burn_in)), order='c')
+
     ######### save bestparams
     if OptimM.Report:
         np.save(workdir + 'bestparams_mcmc.dat', bestparams)
@@ -525,14 +621,30 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
             ax.set_ylabel(par_labels[ip])
             ax.axes.xaxis.set_visible(False)
             for i in range(nwalkers):
-                ax.plot(chains2[:, i, ip], alpha=0.01)
+                ax.plot(chains2[:, i, ip], alpha=0.1)
 
         ax2 = fig.add_subplot(nvar + 1, 1, nvar + 1)
         ax2.set_ylabel('ln(P)')
         ax2.set_xlabel('iter')
         for i in range(nwalkers):
-            ax2.plot(lnpchain2[:, i], alpha=0.01)
+            ax2.plot(lnpchain2[:, i], alpha=0.1)
         plt.savefig(workdir + 'chains.png', bbox_inches='tight')
+
+        fig = plt.figure(figsize=(6.5, 15))
+        par_labels = names
+        for ip in range(nvar):
+            ax = fig.add_subplot(nvar + 1, 1, ip + 1)
+            ax.set_ylabel(par_labels[ip])
+            ax.axes.xaxis.set_visible(False)
+            for i in range(nwalkers):
+                ax.plot(chains3[:, i, ip], alpha=0.1)
+
+        ax2 = fig.add_subplot(nvar + 1, 1, nvar + 1)
+        ax2.set_ylabel('ln(P)')
+        ax2.set_xlabel('iter')
+        for i in range(nwalkers):
+            ax2.plot(lnpchain3[:, i], alpha=0.1)
+        plt.savefig(workdir + 'chains_burn-in.png', bbox_inches='tight')
 
     #corner plots
     if OptimM.CornerPlots:
@@ -555,6 +667,10 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
             zip(*np.percentile(chains, [16, 50, 84], axis=0))))
 
+    # expectation values
+    # ibestparams = np.argmax(lnpchain)
+    # bestparams = chains[ibestparams, :]
+
     mcmc_results_0 = np.zeros(nvar)
 
     if OptimM.Report:
@@ -569,23 +685,30 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     if OptimM.Report:
         print("cross check initial chi2 value")
-        init_lnlike = lnlike(x_free_init, names, ZSetup, ZData, ASED, ZMerit)
+        init_lnlike = lnlike(x_free_init, names, ZSetup, ZData, ASED,
+                             ASED4alphas, ZMerit)
         print("chi2 = %e " % (-2 * init_lnlike))
 
     if OptimM.Report:
         print("running final lnlike to set model to median values")
         final_lnlike = lnlike(mcmc_results_0, names, ZSetup, ZData, ASED,
-                              ZMerit)
+                              ASED4alphas, ZMerit)
         print("chi2 = %e " % (-2 * final_lnlike))
 
     if OptimM.Report:
         print("running final lnlike to set model to best L  values")
         ZSetup.filetag = 'mcmc_bestL_'
-    final_lnlike = lnlike(bestparams, names, ZSetup, ZData, ASED, ZMerit)
-    retvals=ZMerit.calcul(ZSetup, ZData, ASED)
-    achi2=retvals[0]
-    modelInus=retvals[1]
-    modelalphas=retvals[2]
+    final_lnlike = lnlike(bestparams, names, ZSetup, ZData, ASED, ASED4alphas,
+                          ZMerit)
+    retvals = ZMerit.calcul(ZSetup, ZData, ASED, ASED4alphas=ASED4alphas)
+    achi2 = retvals[0]
+    modelInus = retvals[1]
+    if ZData.nus_alphas is not None:
+        modelalphas = retvals[2]
+    else:
+        modelalphas = []
+        
+    print("retvals",retvals)
     if OptimM.Report:
         print("chi2 = %e" % (achi2))
 
@@ -594,8 +717,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     if OptimM.SummaryPlots:
         nchains_4plots = Nit - burn_in
-        #if (nchains_4plots > 1000):
-        #    nchains_4plots=1000
+        if (nchains_4plots > 300):
+            nchains_4plots = 300
 
         summary_SEDs(nvar,
                      names,
@@ -610,18 +733,20 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                      nchains_4plots=nchains_4plots,
                      DoubleArrow=False)
 
+    
     return [names, mcmc_results, bestparams, modelInus, modelalphas, achi2]
 
 
-def logL(ZData, ASED, ASED4alphas=False):
+def logL(ZData, ASED, ASED4alphas=False, Regul=False):
 
     if (np.sum(ZData.sInus) == 0):
         chi2 = np.array([0.])
     else:
         chi2 = np.sum((ZData.Inus - ASED.Inus)**2 / ZData.sInus**2)
 
-    retvals=[chi2,ASED.Inus]
-    # print("chi2  = ", chi2, " dofs ", len(ZData.Inus))
+    retvals = [chi2, ASED.Inus]
+    # print("chi2  = ", chi2, " dofs ", len(ZData.Inus), ASED.Inus, ASED.Tdust, ASED.Sigma_g, ASED.amax, ASED.q_dustexpo, ZData.sInus)
+    
     if ASED4alphas:
         npairs = int(len(ASED4alphas.nus) / 2)
         alphas = np.zeros(npairs)
@@ -637,8 +762,27 @@ def logL(ZData, ASED, ASED4alphas=False):
         # print("chi2_alphas  = ", chi2_alphas, " dofs ", len(ZData.alphas))
         chi2 += chi2_alphas
         retvals.append(alphas)
+        retvals[0]=chi2
     # print("chi2  = ", chi2)
-    
+
+    if Regul:
+        regulterm = 0.
+        LbdaMassRegul = 1E2
+        
+        if ASED.Sigma_g > ASED.Sigma_g_0:
+            SMassRegul = ((ASED.Sigma_g - ASED.Sigma_g_0) / ASED.Sigma_g_0)**2
+            regulterm += LbdaMassRegul * SMassRegul
+            #print("REgularizing Sigma ", chi2, SMassRegul)
+        MaxOptiDepth = 5.
+        LbdaOpacRegul = 1E2
+        #lowesttau = ASED.tau[0]
+        #if (lowesttau > MaxOptiDepth):
+        #    SOpacRegul = (lowesttau - MaxOptiDepth)**2
+        #    regulterm += LbdaOpacRegul * SOpacRegul
+        #    #print("REgularizing Opac ", chi2, SOpacRegul)
+        chi2 += regulterm
+        retvals[0]=chi2
+        
     return retvals
 
 
@@ -656,7 +800,7 @@ class Data():
             nu1s_alphas=None,
             Inu1s=None,
             omega_beam=(np.pi / (4. * np.log(2))) *
-            (0.040 * np.pi / (180. * 3600.))**2,  # C10 B3 beam
+        (0.040 * np.pi / (180. * 3600.))**2,  # C10 B3 beam
             nu2s_alphas=None,
             nus_alphas=None,
             alphas=None,
@@ -695,9 +839,10 @@ class Data():
 class Merit():
 
     def __init__(
-        self,
-        VerboseInit=False,
-        ExecTimeReport=False,
+            self,
+            VerboseInit=False,
+            ExecTimeReport=False,
+            Regul=False,
     ):
         initlocals = locals()
         initlocals.pop('self')
@@ -709,28 +854,28 @@ class Merit():
 
     # self.__dict__.update(ASED.__dict__)
 
-    def calcul(self, ZSetup, ZData, ASED):
+    def calcul(self, ZSetup, ZData, ASED, ASED4alphas=None):
         if self.ExecTimeReport:
             time_start = time()
 
+            
         ASED.calcul()
         if self.ExecTimeReport:
             time_end_1 = time()
             print("time for ASED calcul: ", time_end_1 - time_start, " s")
-        ASED4alphas = False
-        if ZData.nus_alphas is not None:
-            ASED4alphas = AModelSED.MSED(ZSetup)
-            ASED4alphas.copy(ASED)
-            ASED4alphas.nus = ZData.nus_alphas
+
+        if ASED4alphas is not None:
             ASED4alphas.calcul()
             if self.ExecTimeReport:
                 time_end_2 = time()
                 print("time for ASED4alphas calcul: ", time_end_2 - time_end_1,
                       " s")
 
-        retvals = logL(ZData, ASED, ASED4alphas=ASED4alphas)
-        chi2=retvals[0]
-        
+        #print("calling LogL ",ASED.Tdust,ASED.amax, ASED.Sigma_g, ASED.q_dustexpo, ASED.nus, ASED.Inus)
+        retvals = logL(ZData, ASED, ASED4alphas=ASED4alphas,Regul=self.Regul)
+        #chi2 = retvals[0]
+        #print("result ",retvals[0], ASED.nus,ASED.Inus, ASED4alphas.Inus, ASED.amax, )
+
         if self.ExecTimeReport:
             time_end = time()
             print("total time for Likelihood evaluation: ",
@@ -758,10 +903,11 @@ class OptimM():
             domain=[],
             domain_CG=[],
             domain_MCMC=[],
-            Inherit_Init=False, # loads init conditions from ASED 
+            Inherit_Init=False,  # loads init conditions from ASED 
             MCMCProgress=True,
+            PhysicalInit=False,  # use physically motivated initial conditions
             ######################################################################
-            mcmc_results=[],
+        mcmc_results=[],
             mcmc_bestparams=[]):
 
         initlocals = locals()
@@ -771,8 +917,9 @@ class OptimM():
             setattr(self, a_attribute, initlocals[a_attribute])
 
     def MCMC(self, ZSetup, ZData, ASED, ZMerit):
-        [names, mcmc_results, bestparams,  modelInus, modelalphas, achi2] = exec_emcee(self, ZSetup, ZData, ASED, ZMerit)
-        return [names, mcmc_results, bestparams,  modelInus, modelalphas]
+        [names, mcmc_results, bestparams, modelInus, modelalphas,
+         achi2] = exec_emcee(self, ZSetup, ZData, ASED, ZMerit)
+        return [names, mcmc_results, bestparams, modelInus, modelalphas]
 
     def ConjGrad(self, ZSetup, ZData, ASED, ZMerit):
         return exec_ConjGrad(self, ZSetup, ZData, ASED, ZMerit)

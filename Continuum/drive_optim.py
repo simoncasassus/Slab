@@ -22,15 +22,18 @@ ZSetup = AModelSED.Setup(
     Verbose=True,
     PrintChi2s=True,
     ClearOutputDir=False,
-    nf=None,
-    kf=None,
     GenFigs=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
+    GoInterp=False,
     #outputdir='./output_dev_optim/')
     #outputdir='output_dev_optim_walphas/')
-    outputdir='output_optim_dev_fluxcal0.01/')
-    #outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
+    #outputdir='output_optim_dev_fluxcal0.01_loosepos_noalphasb/')
+    #outputdir='output_optim_dev_fluxcal0.01_loosepos_noRegulcheck/')
+    #outputdir='output_optim_dev_fluxcal0.01_loosepos_Regul/')
+    #outputdir='output_optim_dev_interp_Nasizes10000/')
+    outputdir='output_optim_dev/')
+#outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 
@@ -39,22 +42,34 @@ obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 #a_max = 0.103
 #dustexpo = -3.49
 
+#ZSED = AModelSED.MSED(
+#    ZSetup,
+#    Tdust=25.7,  # 25.7
+#    q_dustexpo=-3.49,  # -3.5
+#    f_grain=1.,  # grain filling factor
+#    amin=1E-4,  # cm
+#    amax=0.103,  # 1 cm, maximum grain size
+#    Sigma_g=98.3,  # 50 g/cm2
+#    gtod_ratio=100.,
+#    rho0=2.77,  # g/cm3
+#    N_asizes=1000,
+#    nus=obsfreqs)
+
 ZSED = AModelSED.MSED(
     ZSetup,
-    Tdust=25.7, # 25.7
-    q_dustexpo=-3.49, # -3.5
+    Tdust=30,  # 
+    q_dustexpo=-3.5,  # 
     f_grain=1.,  # grain filling factor
-    amin=1E-3,  # cm
-    amax=0.103,  # 1 cm, maximum grain size
-    Sigma_g=98.3,  # 50 g/cm2
+    amin=1E-4,  # cm
+    amax=1.,  # 1 cm, maximum grain size
+    Sigma_g=30.,  # 50 g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
-    N_asizes=400,
-    GoNumba=True,
+    N_asizes=1000,
     nus=obsfreqs)
 
 ZSED.calcul()
-
+print("calculated mock SED ")
 obsInus = ZSED.Inus.copy()
 fluxcal_accuracy = 0.01
 AddNoise = False
@@ -80,7 +95,8 @@ obsfreqs_alphas = np.array(
 ZSED4alphas = AModelSED.MSED(ZSetup)
 ZSED4alphas.copy(ZSED)
 ZSED4alphas.nus = obsfreqs_alphas
-ZSED4alphas.calcul()
+ZSED4alphas.calcul(ForcePrep=True)
+
 
 intraband_accuracy = 0.008
 npairs = 4
@@ -128,8 +144,10 @@ ZData = SEDOptim.Data(file_obsInus=ZSetup.outputdir + 'mockSED.dat',
 ASED = AModelSED.MSED(ZSetup)
 ASED.copy(ZSED)
 ASED.nus = ZData.nus
+ASED.calcul(ForcePrep=True)
+print("calculated template SED for optim - including kappa grids  ")
 
-ZMerit = SEDOptim.Merit(ExecTimeReport=False)
+ZMerit = SEDOptim.Merit(ExecTimeReport=False, Regul=False)
 
 ASED.ExecTimeReport = False
 
@@ -150,7 +168,8 @@ domain_Powell = [
     ['log(Tdust)', np.log10(100.), [0., 3]],
     #['q_dustexpo', -3.0, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(0.1), [np.log10(1E-3), np.log10(10.)]],  #cm
+    ['log(amax)', np.log10(0.1), [np.log10(1E-3),
+                                  np.log10(10.)]],  #cm
     ['log(Sigma_g)',
      np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
@@ -159,18 +178,19 @@ domain_MCMC = [
     ['log(Tdust)', np.log10(100.), [0., 3]],
     ['q_dustexpo', -3.0, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(0.01), [np.log10(1E-3), np.log10(10.)]],  #cm
+    ['log(amax)', np.log10(0.01), [np.log10(1E-3),
+                                   np.log10(10.)]],  #cm
     ['log(Sigma_g)',
      np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
 
 OptimM = SEDOptim.OptimM(
     RunMCMC=True,
-    MCMC_Nit=1000,  #MCMC iterations
+    MCMC_Nit=5000,  #MCMC iterations
     nwalkers_pervar=10,
-    burn_in=800,
+    burn_in=4500,
     CGmaxiter=False,
-    n_cores_MCMC=4,
+    n_cores_MCMC=1,
     domain=domain,
     domain_CG=domain_Powell,
     domain_MCMC=domain_MCMC)
@@ -179,17 +199,18 @@ OptimM = SEDOptim.OptimM(
 #OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
 #print("ASED.Tdust",ASED.Tdust)
 
-OptimM.domain=domain_Powell
+OptimM.domain = domain_Powell
 #OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
 
 #OptimM.Inherit_Init=True
 #print("ASED.Tdust",ASED.Tdust)
 
-OptimM.SummaryPlots=False
-OptimM.domain=OptimM.domain_MCMC
-[names, mcmc_results, bestparams,  modelInus, modelalphas]=OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
-print("names",names)
-print("mcmc_results",mcmc_results)
-print("bestparams",bestparams)
-print("modelInus",modelInus)
-print("modelalphas",modelalphas)
+OptimM.SummaryPlots = True
+OptimM.domain = OptimM.domain_MCMC
+[names, mcmc_results, bestparams, modelInus,
+ modelalphas] = OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
+print("names", names)
+print("mcmc_results", mcmc_results)
+print("bestparams", bestparams)
+print("modelInus", modelInus)
+print("modelalphas", modelalphas)

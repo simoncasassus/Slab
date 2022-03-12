@@ -1,0 +1,16 @@
+output_optim_dev_interp/
+N_asizes=1000
+Nit=50000
+
+output_optim_dev_interp_Nasizes10000
+Nasizes10000
+Nit=5000
+
+output_optim_dev/
+Nasizes1000
+Nit=5000
+
+
+output_optim_wob9
+vs
+output_optim_wb9

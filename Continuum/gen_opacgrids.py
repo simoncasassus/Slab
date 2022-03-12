@@ -36,11 +36,17 @@ freqs = np.array([100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 nfreqs = len(freqs)
 
 amin = 1E-5  #cm
-amin = 1E-4  #cm
-#N_asizes = 1000
-#largestamax = 10  # cm
+#amin = 1E-4  #cm
+Ngrid_amax = 100
+smallestamax = 1E-3
+largestamax = 10  # cm
 #smallestamax = 1E-3
-#amaxs = np.logspace(np.log10(amin), np.log10(largestamax), N_asizes)
+kappa_abs_4interp = np.zeros(freqs,#amaxs = np.logspace(np.log10(amin), np.log10(largestamax), N_asizes)
+
+loga_sizes = (largestamax - amin) * (
+    np.arange(N_asizes) / N_asizes) + np.log10(amin)x
+a_sizes = 10**(loga_sizes)
+
 
 ZSED = AModelSED.MSED(
     ZSetup,

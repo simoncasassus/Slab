@@ -22,10 +22,8 @@ ZSetup = AModelSED.Setup(
     Verbose=True,
     PrintChi2s=True,
     ClearOutputDir=False,
-    nf=None,
-    kf=None,
     GenFigs=True,
-    GoInterp=False,
+    GoInterp=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
     #outputdir='./output_grids_interp/')
@@ -53,8 +51,7 @@ ZSED = AModelSED.MSED(
     rho0=2.77,  # g/cm3
     N_asizes=1000,
     nus=nus,
-    ExecTimeReport=False,
-    GoNumba=True)
+    ExecTimeReport=False)
 
 for iter in range(10):
     print("iter", iter)
