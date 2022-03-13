@@ -2,7 +2,9 @@ import sys
 import os
 import re
 import numpy as np
+import math
 import matplotlib
+from astropy.io import fits
 
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
@@ -154,6 +156,44 @@ def f_kappa_scat_numba(nf, kf, a, lam, rho, f):
 
 
 @jit(nopython=True)
+def bilin(i1, j1, i2, j2, dx, dy, cube, ifreq):
+    #  Bilinear interpolation
+    v11 = cube[ifreq, i1, j1]
+    v12 = cube[ifreq, i1, j2]
+    v21 = cube[ifreq, i2, j1]
+    v22 = cube[ifreq, i2, j2]
+    value = (1. - dx) * (1. - dy) * v11 + (1. - dx) * dy * v12 + dx * (
+        1. - dy) * v21 + dx * dy * v22
+    return value
+
+
+@jit(nopython=True)
+def get_taus_and_kappas_interp2D_kernel(Sigma_g, N_freqs, i1, i2, j1, j2,
+                                        dlogamax, dq, kappa_abs_nus_grid,
+                                        kappa_scat_nus_grid, kappa_abs,
+                                        kappa_scat, tau_abs, tau_scat, tau,
+                                        omega_nu, epsilon_nu):
+
+    for ifreq in range(N_freqs):
+        #hdukappa_abs = kappa_abs_hdulgrid[ifreq]
+        #kappa_abs2D = hdukappa_abs.data
+        dum = bilin(i1, j1, i2, j2, dlogamax, dq, kappa_abs_nus_grid, ifreq)
+        kappa_abs[ifreq] = dum
+
+        #hdukappa_scat = kappa_scat_hdulgrid[ifreq]
+        #kappa_scat2D = hdukappa_scat.data
+        #kappa_scat2D = kappa_scat_nus_grid[ifreq, :, :]
+        #kappa_scat[ifreq] = bilin(i1, j1, i2, j2, dlogamax, dq, kappa_scat_nus_grid, ifreq)
+        kappa_scat[ifreq] = bilin(i1, j1, i2, j2, dlogamax, dq,
+                                  kappa_scat_nus_grid, ifreq)
+
+        tau_abs[ifreq] = kappa_abs[ifreq] * Sigma_g
+        tau_scat[ifreq] = kappa_scat[ifreq] * Sigma_g
+        tau[ifreq] = tau_scat[ifreq] + tau_abs[ifreq]
+        omega_nu[ifreq] = tau_scat[ifreq] / (tau_scat[ifreq] + tau_abs[ifreq])
+        epsilon_nu[ifreq] = 1.0 - omega_nu[ifreq]
+
+@jit(nopython=True)
 def get_kappa_as_numba_kernel(nlambdas, lambdas, nfs, kfs, rhoi, N_asizes,
                               a_sizes, kappa_as_abs, kappa_as_scat, f_grain):
 
@@ -259,12 +299,12 @@ class Setup():
     def __init__(
             self,
             filetag='',  # False
-            Verbose=True,
             PrintChi2s=True,
             ClearOutputDir=False,
             nf=None,
             kf=None,
-            #log_a_sizes_4interp=None,
+            #log_a_sizes_4interp1D=None,
+            Go1DInterp=False,
             GoInterp=False,
             amax_4grid=10,  #cm
             GenFigs=True,
@@ -273,8 +313,8 @@ class Setup():
             use_Kataoka=True,  # 4 grids
             outputdir='./output_dev/',
             ######################################################################
-            kappa_as_abs_4interp=None,
-            kappa_as_scat_4interp=None,
+            kappa_as_abs_4interp1D=None,
+            kappa_as_scat_4interp1D=None,
             kappa_as_abs=None,
             kappa_as_scat=None):
 
@@ -303,10 +343,11 @@ class MSED(Setup):
             Sigma_g=0.5,  # g/cm2
             gtod_ratio=100.,
             rho0=2.77,  # g/cm3
-            N_asizes=40,  #if ZSetup.GoInterp  then N_asizes should be set to the grid
+            N_asizes=40,  #if ZSetup.Go1DInterp  then N_asizes should be set to the grid
             nus=[],
             ExecTimeReport=False,
             GoNumba=True,
+            Verbose=True,
             ######################################################################
             Inus=[],
             Sigma_d=0,
@@ -325,7 +366,19 @@ class MSED(Setup):
             tau_scat=None,
             tau=None,
             kappa_abs=None,
-            kappa_scat=None):
+            kappa_scat=None,
+            kappa_abs_hdulgrid=None,
+            kappa_scat_hdulgrid=None,
+            kappa_abs_nus_grid=None,
+            kappa_scat_nus_grid=None,
+            logamaxgrid=None,
+            Nlogamaxgrid=None,
+            logamaxgrid_smallest=None,
+            logamaxgrid_delta=None,
+            qgrid_smallest=None,
+            qgrid_delta=None,
+            qgrid=None,
+            Nqgrid=None):
 
         initlocals = locals()
         initlocals.pop('self')
@@ -351,18 +404,20 @@ class MSED(Setup):
         #                           self.N_asizes)
 
         if (self.nfs is None) or ForcePrep:
-            print("initialize nfs kfs")
+            if self.Verbose:
+                print("initialize nfs kfs")
             lambdas = self.lambdas
             self.nfs = self.nf(lambdas * 1.0e4)
             self.kfs = self.kf(lambdas * 1.0e4)
 
-        if not self.GoInterp:
+        if not self.Go1DInterp:
             loga_sizes = (np.log10(self.amax) - np.log10(self.amin)) * (
                 np.arange(self.N_asizes) / self.N_asizes) + np.log10(self.amin)
             self.a_sizes = 10**(loga_sizes)
 
         if (self.kappa_as_abs is None) or ForcePrep:
-            print("initializae kappa_as arrays")
+            if self.Verbose:
+                print("initializae kappa_as arrays")
             self.kappa_as_abs = np.zeros(
                 (self.N_asizes, self.N_freqs
                  ))  # opacities for different grain sizes and wavelengths
@@ -370,8 +425,8 @@ class MSED(Setup):
                 (self.N_asizes, self.N_freqs
                  ))  # opacities for different grain sizes and wavelengths
 
-        if self.GoInterp:
-            if (self.kappa_as_abs_4interp is None) or ForcePrep:
+        if self.Go1DInterp:
+            if (self.kappa_as_abs_4interp1D is None) or ForcePrep:
                 if self.use_Kataoka:
                     print("computing opacity grid using Kataoka formulae",
                           ForcePrep)
@@ -383,21 +438,56 @@ class MSED(Setup):
                     self.a_sizes = 10**(loga_sizes)
                     self.get_Sigma_as()
                     self.get_kappa_as_numba()
-                    self.kappa_as_abs_4interp = self.kappa_as_abs
-                    self.kappa_as_scat_4interp = self.kappa_as_scat
-                    self.kappa_as_abs_4interp = self.kappa_as_abs
-                    self.kappa_as_scat_4interp = self.kappa_as_scat
+                    self.kappa_as_abs_4interp1D = self.kappa_as_abs
+                    self.kappa_as_scat_4interp1D = self.kappa_as_scat
+                    self.kappa_as_abs_4interp1D = self.kappa_as_abs
+                    self.kappa_as_scat_4interp1D = self.kappa_as_scat
                     self.amax = amax
                 else:
                     if os.path.exists(outputdir + 'allkappa_as_scat.npy'):
-                        self.kappa_as_abs_4interp = np.load(
+                        self.kappa_as_abs_4interp1D = np.load(
                             self.outputdir + 'allkappa_as_abs.npy')
-                        self.kappa_as_scat_4interp = np.load(
+                        self.kappa_as_scat_4interp1D = np.load(
                             self.outputdir + 'allkappa_as_scat.npy')
-                        self.log_a_sizes_4interp = np.load(outputdir +
-                                                           'logasizes.npy')
+                        self.log_a_sizes_4interp1D = np.load(outputdir +
+                                                             'logasizes.npy')
                     else:
                         sys.exit("compute grids first")
+
+        if self.GoInterp:
+            if (self.kappa_abs_nus_grid is None) or ForcePrep:
+                if os.path.exists(self.outputdir + 'kappa_abs_grid.fits'):
+                    self.kappa_abs_hdulgrid = fits.open(self.outputdir +
+                                                        'kappa_abs_grid.fits')
+                    self.kappa_scat_hdulgrid = fits.open(
+                        self.outputdir + 'kappa_scat_grid.fits')
+                    hdr = self.kappa_abs_hdulgrid[0].header
+                    self.logamaxgrid = hdr['CRVAL2'] + hdr['CDELT2'] * (
+                        np.arange(hdr['NAXIS2']) - (hdr['CRPIX2'] - 1))
+                    self.logamaxgrid_smallest = hdr['CRVAL2']
+                    self.logamaxgrid_delta = hdr['CDELT2']
+                    self.Nlogamaxgrid = hdr['NAXIS2']
+                    self.qgrid = hdr['CRVAL1'] + hdr['CDELT1'] * (
+                        np.arange(hdr['NAXIS1']) - (hdr['CRPIX1'] - 1))
+                    self.qgrid_smallest = hdr['CRVAL1']
+                    self.qgrid_delta = hdr['CDELT1']
+                    self.Nqgrid = hdr['NAXIS1']
+
+                    gridshape = list(self.kappa_abs_hdulgrid[0].data.shape)
+                    gridshape.insert(0, self.N_freqs)
+                    print("gridshape", gridshape)
+                    kappa_abs_nus_grid = np.zeros(gridshape)
+                    kappa_scat_nus_grid = np.zeros(gridshape)
+                    for ifreq in range(self.N_freqs):
+                        kappa_abs_nus_grid[
+                            ifreq, :, :] = self.kappa_abs_hdulgrid[ifreq].data
+                        kappa_scat_nus_grid[
+                            ifreq, :, :] = self.kappa_scat_hdulgrid[ifreq].data
+                    self.kappa_abs_nus_grid = kappa_abs_nus_grid
+                    self.kappa_scat_nus_grid = kappa_scat_nus_grid
+
+                else:
+                    sys.exit("compute grids first")
 
     def copy(self, AnotherSED):
         self.__dict__.update(AnotherSED.__dict__)
@@ -416,7 +506,7 @@ class MSED(Setup):
 
         ilogamax = len(self.a_sizes)
         #print("ilogamax in get_Sigma_as",ilogamax)
-        #if self.GoInterp:
+        #if self.Go1DInterp:
         #    ilogamax = self.ilogamax
         fas2 = self.a_sizes[0:ilogamax]**(self.q_dustexpo + 4)
         fas1 = np.roll(fas2, 1)
@@ -447,15 +537,15 @@ class MSED(Setup):
         self.kappa_as_abs = kappa_as_abs
         self.kappa_as_scat = kappa_as_scat
 
-    def get_kappa_as_interp(self):
+    def get_kappa_as_1Dinterp(self):
 
         logamax = np.log10(self.amax)
         dlogas = (np.log10(self.amax_4grid) -
                   np.log10(self.amin)) / self.N_asizes
         ilogamax = int((logamax - np.log10(self.amin)) / dlogas)
 
-        self.kappa_as_abs = self.kappa_as_abs_4interp
-        self.kappa_as_scat = self.kappa_as_scat_4interp
+        self.kappa_as_abs = self.kappa_as_abs_4interp1D
+        self.kappa_as_scat = self.kappa_as_scat_4interp1D
         self.ilogamax = ilogamax + 1
 
     def get_kappa_as_numba(self):
@@ -480,6 +570,56 @@ class MSED(Setup):
         #self.kappa_as_abs = kappa_as_abs
         #self.kappa_as_scat = kappa_as_scat
 
+    def get_taus_and_kappas_interp(self):
+        tau = np.zeros(self.N_freqs)
+        tau_abs = np.zeros(self.N_freqs)
+        tau_scat = np.zeros(self.N_freqs)
+        kappa_abs = np.zeros(self.N_freqs)
+        kappa_scat = np.zeros(self.N_freqs)
+        omega_nu = np.zeros(self.N_freqs)
+        epsilon_nu = np.zeros(self.N_freqs)
+
+        kappa_abs_hdulgrid = self.kappa_abs_hdulgrid
+        kappa_scat_hdulgrid = self.kappa_scat_hdulgrid
+
+        Sigma_g = self.Sigma_g
+
+        logamax = np.log10(self.amax)
+        q_dustexpo = self.q_dustexpo
+        logamaxgrid = self.logamaxgrid
+
+        dlogamax = self.logamaxgrid_delta
+        i1 = math.floor((logamax - self.logamaxgrid_smallest) / dlogamax)
+        i2 = i1 + 1
+        if i1 < 0 or i2 >= self.Nlogamaxgrid:
+            print("i1 ",i1,"i2",i2,"Nlogamaxgrid",self.Nlogamaxgrid)
+            sys.exit("extrapolate logamax?")
+
+        dq = self.qgrid_delta
+        j1 = math.floor((q_dustexpo - self.qgrid_smallest) / dq)
+        j2 = j1 + 1
+        if (j1 < 0) or (j2 >= self.Nqgrid):
+            print("i1 ",i1,"i2",i2,"Nlogamaxgrid",self.Nqgrid)
+            sys.exit("extrapolate q_dustexpo?")
+
+        N_freqs = self.N_freqs
+        kappa_abs_nus_grid = self.kappa_abs_nus_grid
+        kappa_scat_nus_grid = self.kappa_scat_nus_grid
+        get_taus_and_kappas_interp2D_kernel(Sigma_g, N_freqs, i1, i2, j1, j2,
+                                            dlogamax, dq, kappa_abs_nus_grid,
+                                            kappa_scat_nus_grid, kappa_abs,
+                                            kappa_scat, tau_abs, tau_scat, tau,
+                                            omega_nu, epsilon_nu)
+
+
+        self.tau = tau
+        self.tau_abs = tau_abs
+        self.tau_scat = tau_scat
+        self.kappa_abs = kappa_abs
+        self.kappa_scat = kappa_scat
+        self.omega_nu = omega_nu
+        self.epsilon_nu = epsilon_nu
+
     def get_taus_and_kappas(self):
 
         tau = np.zeros(self.N_freqs)
@@ -493,7 +633,7 @@ class MSED(Setup):
         #ilogamax = len(self.Sigma_as)
         ilogamax = len(self.a_sizes)
 
-        if self.GoInterp:
+        if self.Go1DInterp:
             ilogamax = self.ilogamax
 
         for ifreq in range(self.N_freqs):
@@ -530,7 +670,7 @@ class MSED(Setup):
         #ilogamax = len(self.Sigma_as)
         ilogamax = len(self.a_sizes)
 
-        if self.GoInterp:
+        if self.Go1DInterp:
             ilogamax = self.ilogamax
 
         #print("max self.kappa_as_abs", np.max(self.kappa_as_abs))
@@ -575,27 +715,33 @@ class MSED(Setup):
         if self.ExecTimeReport:
             time_0 = time()
             print("time for prep::", time_0 - time_00, " s")
-        self.get_Sigma_as()
-        if self.ExecTimeReport:
-            time_1 = time()
-            print("time for get_Sigma_as::", time_1 - time_0, " s")
         if self.GoInterp:
-            self.get_kappa_as_interp()  #
-            #print("GoInterp self.ilogamax", self.ilogamax)
-        elif self.GoNumba:
-            self.get_kappa_as_numba()
+            self.get_taus_and_kappas_interp()
+            if self.ExecTimeReport:
+                time_3 = time()
+                print("time for get_taus_and_kappas :", time_3 - time_0, " s")
         else:
-            self.get_kappa_as()  #
-        if self.ExecTimeReport:
-            time_2 = time()
-            print("time for get_kappa_as :", time_2 - time_1, " s")
-        if self.GoNumba:
-            self.get_taus_and_kappas_numba()
-        else:
-            self.get_taus_and_kappas()
-        if self.ExecTimeReport:
-            time_3 = time()
-            print("time for get_taus_and_kappas :", time_3 - time_2, " s")
+            self.get_Sigma_as()
+            if self.ExecTimeReport:
+                time_1 = time()
+                print("time for get_Sigma_as::", time_1 - time_0, " s")
+            if self.Go1DInterp:
+                self.get_kappa_as_1Dinterp()  #
+                #print("Go1DInterp self.ilogamax", self.ilogamax)
+            elif self.GoNumba:
+                self.get_kappa_as_numba()
+            else:
+                self.get_kappa_as()  #
+            if self.ExecTimeReport:
+                time_2 = time()
+                print("time for get_kappa_as :", time_2 - time_1, " s")
+            if self.GoNumba:
+                self.get_taus_and_kappas_numba()
+            else:
+                self.get_taus_and_kappas()
+            if self.ExecTimeReport:
+                time_3 = time()
+                print("time for get_taus_and_kappas :", time_3 - time_2, " s")
         self.get_Inus()
         if self.ExecTimeReport:
             time_4 = time()

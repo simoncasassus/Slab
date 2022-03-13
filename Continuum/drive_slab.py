@@ -19,11 +19,11 @@ import AModelSED
 
 ZSetup = AModelSED.Setup(
     filetag='',  # False
-    Verbose=True,
     PrintChi2s=True,
     ClearOutputDir=False,
     GenFigs=True,
-    GoInterp=True,
+    #GoInterp=True,
+    Go1DInterp=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
     #outputdir='./output_grids_interp/')
@@ -37,7 +37,8 @@ lognu1 = np.log10(30E9)
 lognu2 = np.log10(700E9)
 lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
 nus = 10**lognus
-freqs = np.array([100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+#freqs = np.array([100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+freqs = np.array([100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 nus = freqs
 ZSED = AModelSED.MSED(
     ZSetup,
@@ -46,7 +47,7 @@ ZSED = AModelSED.MSED(
     f_grain=1.,  # grain filling factor
     amin=1E-4,  # cm
     amax=1.,  # cm, maximum grain size
-    Sigma_g=1. * 0.5,  # g/cm2
+    Sigma_g=100. * 0.5,  # g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=1000,
