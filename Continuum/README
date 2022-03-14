@@ -1,0 +1,29 @@
+gen_opacgrids.py:
+start here if using interpolation
+
+
+drive_slab.py:
+example run for a single los.
+
+drive_optim.py:
+example SED optimization for a single los
+
+drive_imoptim.py:
+example optimization for multi-freq images
+
+----------------------------------------------------------------------
+ZSetup = AModelSED.Setup(
+    filetag='',  # False
+    PrintChi2s=True,
+    ClearOutputDir=False,
+    GenFigs=True,
+    #GoNearNeighbor1D=True, # nearest neighbor look-up for kappa_as
+    GoInterp=True,  # ---> 2D interpolation in grids
+    opct_file='opct_mix.txt',
+    VerboseInit=False,
+    outputdir='./output_grids/')
+
+
+
+
+

@@ -85,9 +85,24 @@ def summary_SEDs(nvar,
     lognu2 = np.log10(700E9)
     lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
     nus = 10**lognus
+    print("in summary SEDs ")
+    #if ZSetup.GoInterp:
+    ZSetup.GoInterp=False
+    ZSetup.GoNearNeighbor1D=False
+    ASED.GoInterp=False
+    ASED.GoNearNeighbor1D=False
     ASED.nus = nus
     ASED.calcul(ForcePrep=True)
 
+    #ASED = AModelSED.MSED(ZSetup)
+    #ASED.nus = nus
+    #if mcmc_results is not None:
+    #    assignfreeparams(names, mcmc_bestparams, ASED)
+    #elif CGbestparams is not None:
+    #    assignfreeparams(names, CGbestparams, ASED)
+    #ASED.calcul(ForcePrep=True)   # DEV DEV 
+
+    
     Inorm = (ASED.nus / 100E9)**2
     plt.figure(figsize=(10, 4))
     WithSEDchains = False
@@ -147,6 +162,10 @@ def summary_SEDs(nvar,
                  label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ median' + '\n' +
                  Ztitle_mcmc)
 
+        # ensure numpy arrays are reset to mcmc_bestparams
+        assignfreeparams(names, mcmc_bestparams, ASED)
+        ASED.calcul()
+
     Inorm_Data = (ZData.nus / 100E9)**2
     plt.errorbar(ZData.nus / 1E9,
                  ZData.omega_beam * ZData.Inus / Inorm_Data,
@@ -173,14 +192,14 @@ def summary_SEDs(nvar,
             dnu = 0.1 * nu1
             nu2 = nu1 + dnu
             nu3 = nu1 - dnu
-            print("specindex", specindex)
+            #print("specindex", specindex)
             Inu2 = Inu1 * (nu2 / nu1)**specindex
             Inu3 = Inu1 * (nu3 / nu1)**specindex
             Inu1 /= (nu1 / 100E9)**2
             Inu2 /= (nu2 / 100E9)**2
             Inu3 /= (nu3 / 100E9)**2
             dInu = (Inu2 - Inu1)
-            print("Inu2", Inu2 * ZData.omega_beam, Inu1 * ZData.omega_beam)
+            #print("Inu2", Inu2 * ZData.omega_beam, Inu1 * ZData.omega_beam)
             plt.arrow(nu1 / 1E9,
                       Inu1 * ZData.omega_beam,
                       dnu / 1E9,
@@ -219,7 +238,7 @@ def assignfreeparams(parnames, values, ASED):
         if m:
             aname = m.group(1)
             avalue = 10**(avalue)
-        #print("ASED assign:",aname,"<- ",avalue)
+        #print("ASED assign:",aname,"<- ",avalue)  # DEV DEV 
         setattr(ASED, aname, avalue)
 
 
@@ -272,19 +291,26 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
     eps = np.array(eps)
     nll = lambda *args: -lnlike(*args)
     x_free_init = x_free.copy()
-
+    #print("run_scipy_optimize_minimize",x_free_init)
+    #print("ASED.nus",ASED.nus)
+    ASED.calcul(ForcePrep=True)
+    
     ASED4alphas = None
-    if ZData.nus_alphas:
+    if ZData.nus_alphas is not None:
         ASED4alphas = AModelSED.MSED(ZSetup)
         ASED4alphas.copy(ASED)
+        if ASED4alphas.GoInterp:
+            ASED4alphas.gridfiletag='_4alphas'
         ASED4alphas.nus = ZData.nus_alphas
         ASED4alphas.calcul(ForcePrep=True)
 
     init_lnlike = lnlike(x_free_init, names, ZSetup, ZData, ASED, ASED4alphas,
                          ZMerit)
+
     if OptimM.Report:
-        print("init_chi2 %e" % (-2. * init_lnlike))
+        print("scipy.op init_chi2 %e" % (-2. * init_lnlike))
     options = {'eps': eps}
+
     if OptimM.CGmaxiter:
         options['maxiter'] = OptimM.CGmaxiter
 
@@ -308,6 +334,10 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
         print("init chi2 xcheck   %e" % (-2. * init_lnlike2))
     best_lnlike = lnlike(result_ml, names, ZSetup, ZData, ASED, ASED4alphas,
                          ZMerit)
+
+    retvals = ZMerit.calcul(ZSetup, ZData, ASED, ASED4alphas=ASED4alphas)
+
+    
     if OptimM.Report:
         print("best_chi2 %e" % (-2. * best_lnlike))
 
@@ -321,14 +351,14 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
     #    uncertainty_i = np.sqrt(result.hess_inv(tmp_i)[i])
     #    errors_ml[i] = uncertainty_i
     #    # print(('{0:12.4e} +- {1:.1e}'.format(result.x[i], uncertainty_i)))
-    return (result_ml, errors_ml)
+    return (result_ml, errors_ml, retvals)
 
 
 def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     maxiter = OptimM.CGmaxiter
     ASED.nus = ZData.nus
-
+    
     names = list(map((lambda x: x[0]), OptimM.domain))
     sample_params = list(map((lambda x: x[1]), OptimM.domain))
     bnds = list(map((lambda x: x[2]), OptimM.domain))
@@ -355,14 +385,15 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
     x_free = np.array(sample_params)
 
     (result_ml,
-     errors_ml) = run_scipy_optimize_minimize(x_free, names, bnds, ZSetup,
+     errors_ml, retvals) = run_scipy_optimize_minimize(x_free, names, bnds, ZSetup,
                                               ZData, ASED, ZMerit, OptimM)
+
 
     if OptimM.Report:
         np.save(ZSetup.outputdir + 'result_ml.dat', result_ml)
         np.save(ZSetup.outputdir + 'result_ml_errors.dat', errors_ml)
-    if OptimM.SummaryPlots:
 
+    if OptimM.SummaryPlots:
         summary_SEDs(nvar,
                      names,
                      ASED,
@@ -377,7 +408,15 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
                      filename='fig_bestfit_Powell.png',
                      DoubleArrow=False)
 
-    return names, result_ml
+    achi2 = retvals[0]
+    modelInus = retvals[1]
+    if ZData.nus_alphas is not None:
+        modelalphas = retvals[2]
+    else:
+        modelalphas = []
+        
+    #return names, result_ml
+    return [names, result_ml, modelInus, modelalphas, achi2]
 
 
 def Tbrightness(I_nu, nu):
@@ -487,6 +526,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     if ZData.nus_alphas is not None:
         ASED4alphas = AModelSED.MSED(ZSetup)
         ASED4alphas.copy(ASED)
+        if ASED4alphas.GoInterp:
+            ASED4alphas.gridfiletag='_4alphas'
         ASED4alphas.nus = ZData.nus_alphas
         ASED4alphas.calcul(ForcePrep=True)
         
@@ -511,9 +552,9 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        #awalkerinit = sample_params + (1e-2 * np.random.randn(ndim) *
-        #                               allowed_ranges)
-        awalkerinit = sample_params + (np.random.randn(ndim) * allowed_ranges)
+        awalkerinit = sample_params + (1e-2 * np.random.randn(ndim) *
+                                       allowed_ranges)
+        #awalkerinit = sample_params + (np.random.randn(ndim) * allowed_ranges)
 
         for j in list(range(ndim)):
             lowerlimit = bnds[j][0]
@@ -708,7 +749,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     else:
         modelalphas = []
         
-    print("retvals",retvals)
+    #print("retvals",retvals)
     if OptimM.Report:
         print("chi2 = %e" % (achi2))
 
@@ -744,6 +785,7 @@ def logL(ZData, ASED, ASED4alphas=False, Regul=False):
     else:
         chi2 = np.sum((ZData.Inus - ASED.Inus)**2 / ZData.sInus**2)
 
+    
     retvals = [chi2, ASED.Inus]
     # print("chi2  = ", chi2, " dofs ", len(ZData.Inus), ASED.Inus, ASED.Tdust, ASED.Sigma_g, ASED.amax, ASED.q_dustexpo, ZData.sInus)
     

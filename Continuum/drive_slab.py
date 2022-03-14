@@ -22,8 +22,7 @@ ZSetup = AModelSED.Setup(
     PrintChi2s=True,
     ClearOutputDir=False,
     GenFigs=True,
-    #GoInterp=True,
-    Go1DInterp=True,
+    GoNearNeighbor1D=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
     #outputdir='./output_grids_interp/')
@@ -42,12 +41,12 @@ freqs = np.array([100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 nus = freqs
 ZSED = AModelSED.MSED(
     ZSetup,
-    Tdust=20.,
+    Tdust=30.,
     q_dustexpo=-3.5,
     f_grain=1.,  # grain filling factor
     amin=1E-4,  # cm
     amax=1.,  # cm, maximum grain size
-    Sigma_g=100. * 0.5,  # g/cm2
+    Sigma_g=100.,  # g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=1000,
@@ -61,11 +60,11 @@ for iter in range(10):
     time_2 = time()
     print("total execution time:", time_2 - time_1, "s")
 
-time_1 = time()
-for iter in range(100):
-    ZSED.calcul()
-time_2 = time()
-print("100 batch execution time:", time_2 - time_1, "s")
+#time_1 = time()
+#for iter in range(100):
+#    ZSED.calcul()
+#time_2 = time()
+#print("100 batch execution time:", time_2 - time_1, "s")
 
 
 

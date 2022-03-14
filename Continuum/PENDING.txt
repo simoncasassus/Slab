@@ -1,1 +1,3 @@
-compute bilinear interpolation for GoInterp - both amax and q
+inherit MCMC into Powell: why is init powell chi2 not the same as best mcmc chi2?
+
+

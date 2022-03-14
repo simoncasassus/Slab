@@ -19,20 +19,14 @@ import AModelSED
 
 ZSetup = AModelSED.Setup(
     filetag='',  # False
-    Verbose=True,
     PrintChi2s=True,
     ClearOutputDir=False,
     GenFigs=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
-    Go1DInterp=False,
-    #outputdir='./output_dev_optim/')
-    #outputdir='output_dev_optim_walphas/')
-    #outputdir='output_optim_dev_fluxcal0.01_loosepos_noalphasb/')
-    #outputdir='output_optim_dev_fluxcal0.01_loosepos_noRegulcheck/')
-    #outputdir='output_optim_dev_fluxcal0.01_loosepos_Regul/')
-    #outputdir='output_optim_dev_interp_Nasizes10000/')
-    outputdir='output_optim_dev/')
+    GoInterp=True,
+    outputdir='output_dev_optim_goInterp/')
+    #outputdir='output_dev_optim/')
 #outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
@@ -87,13 +81,15 @@ save_mockdata[:, 2] = ZSED.Inus * fluxcal_accuracy
 np.savetxt(ZSetup.outputdir + 'mockSED.dat', save_mockdata)
 
 obsfreqs_alphas = np.array(
-    [100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+    [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 
-obsfreqs_alphas = np.array(
-    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
+#obsfreqs_alphas = np.array(
+#    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
 
 ZSED4alphas = AModelSED.MSED(ZSetup)
 ZSED4alphas.copy(ZSED)
+if ZSED4alphas.GoInterp:
+    ZSED4alphas.gridfiletag='_4alphas'
 ZSED4alphas.nus = obsfreqs_alphas
 ZSED4alphas.calcul(ForcePrep=True)
 
@@ -175,13 +171,13 @@ domain_Powell = [
 ]  # g/cm2
 
 domain_MCMC = [
-    ['log(Tdust)', np.log10(100.), [0., 3]],
-    ['q_dustexpo', -3.0, [-3.99, -2.]],
+    ['log(Tdust)', np.log10(30.), [0., 3]],
+    ['q_dustexpo', -3.5, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(0.01), [np.log10(1E-3),
+    ['log(amax)', np.log10(1.), [np.log10(1E-3),
                                    np.log10(10.)]],  #cm
     ['log(Sigma_g)',
-     np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]
+     np.log10(30.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
 
 OptimM = SEDOptim.OptimM(
@@ -214,3 +210,8 @@ print("mcmc_results", mcmc_results)
 print("bestparams", bestparams)
 print("modelInus", modelInus)
 print("modelalphas", modelalphas)
+
+OptimM.SummaryPlots = True
+OptimM.Inherit_Init=True
+OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
+
