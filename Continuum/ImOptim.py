@@ -89,16 +89,26 @@ def punchmap(im, hdu, units='', fileout='test.fits'):
     hdu.writeto(fileout, overwrite=True)
 
 
-def exec_optim_1los(pos, OptimM=None, ZSetup=None, ASED=None, ZMerit=None):
+def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
     AData = pos[2]
-    if OptimM.RunConjGrad:
-        OptimM.domain = OptimM.domain_CG
-        [names, bestparams] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
-        passout = [names, bestparams]
 
+    #OptimM.domain = OptimM.domain_CG
+    #[names, bestparams] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
+    #passout = [names, bestparams]
+
+    ASED = AModelSED.MSED(ZSetup)
+    ASED.copy(ZSED)
+    
     OptimM.domain = OptimM.domain_MCMC
     [names, mcmc_results, bestparams, modelInus,
      modelalphas] = OptimM.MCMC(ZSetup, AData, ASED, ZMerit)
+
+    if OptimM.RunConjGrad:
+        OptimM.Inherit_Init = True
+        [names, result_ml, modelInus, modelalphas,
+         achi2] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
+        bestparams = result_ml
+
     passout = [pos, names, mcmc_results, bestparams, modelInus, modelalphas]
     return passout
 
@@ -132,7 +142,7 @@ def loaddata(files_images, files_specindex, zoomfactor=8):
 def exec_imoptim(OptimM,
                  ZSetup,
                  ZData,
-                 ASED,
+                 ZSED,
                  ZMerit,
                  hdu_canvas,
                  mfreq_imhdus,
@@ -208,14 +218,14 @@ def exec_imoptim(OptimM,
     #        {'ZSetup': ZSetup,'ASED': ASED,'ZMerit': ZMerit}
 
     print("loaded all ", len(tasks), "tasks")
-    
+
     with Pool(n_cores_map) as pool:
         Pooloutput = list(
             tqdm(pool.imap(
                 partial(exec_optim_1los,
                         OptimM=OptimM,
                         ZSetup=ZSetup,
-                        ASED=ASED,
+                        ZSED=ZSED,
                         ZMerit=ZMerit), tasks),
                  total=len(tasks)))
         pool.close()

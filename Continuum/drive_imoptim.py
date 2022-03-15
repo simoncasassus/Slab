@@ -33,17 +33,18 @@ import SEDOptim
 import ImOptim
 
 files_images = [
-    './data/I_100.fits',
-    './data/I_150.fits',
-    './data/I_230.fits',
-    './data/I_345.fits',
+    './mockdata/I_100.fits',
+    './mockdata/I_150.fits',
+    './mockdata/I_230.fits',
+    './mockdata/I_345.fits',
+    './mockdata/I_694.fits',
 ]
 
 files_specindex = [
-    './data/specindec_100.fits',
-    './data/specindec_150.fits',
-    './data/specindec_230.fits',
-    './data/specindec_345.fits',
+    './mockdata/specindec_100.fits',
+    './mockdata/specindec_150.fits',
+    './mockdata/specindec_230.fits',
+    './mockdata/specindec_345.fits',
 ]
 
 hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, omega_beams = ImOptim.loaddata(
@@ -62,20 +63,25 @@ ZSetup = AModelSED.Setup(
     VerboseInit=False,
     outputdir=outputdir)
 
-obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
+#obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
+obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
 
-fluxcal_accuracy = np.array([0.1, 0.1, 0.1, 0.1])
-fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01])
+#fluxcal_accuracy = np.array([0.1, 0.1, 0.1, 0.1])
+fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01, 0.01])
 
-obsfreqs_alphas = np.array(
-    [100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+#obsfreqs_alphas = np.array(
+#    [100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+
 
 obsnu1s = np.array([100E9, 150E9, 230E9, 345E9])
 
-obsnu2s = np.array([115E9, 165E9, 245E9, 360E9])
+obsnu2s = np.array([130E9, 165E9, 245E9, 360E9])
 
 obsfreqs_alphas = np.array(
-    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
+    [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+
+#obsfreqs_alphas = np.array(
+#    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
 
 ZData = SEDOptim.Data()
 ZData.nus = obsfreqs
@@ -83,28 +89,31 @@ ZData.nu1s_alphas = obsnu1s
 ZData.nu2s_alphas = obsnu2s
 ZData.nus_alphas = obsfreqs_alphas
 ZData.omega_beam = omega_beam
-npairs = len(ZData.nus)
-allnus = np.zeros(int(2 * npairs))
-for ipair in range(npairs):
-    inu1 = int(2 * ipair)
-    inu2 = int(2 * ipair + 1)
-    allnus[inu1] = ZData.nu1s_alphas[ipair]
-    allnus[inu2] = ZData.nu2s_alphas[ipair]
-ZData.nus_alphas = allnus
 
-ASED = AModelSED.MSED(
+#npairs = len(obsnu1s)
+#allnus = np.zeros(int(2 * npairs))
+#for ipair in range(npairs):
+#    inu1 = int(2 * ipair)
+#    inu2 = int(2 * ipair + 1)
+#    allnus[inu1] = ZData.nu1s_alphas[ipair]
+#    allnus[inu2] = ZData.nu2s_alphas[ipair]
+    
+ZData.nus_alphas = obsfreqs_alphas
+
+ZSED = AModelSED.MSED(
     ZSetup,
     Tdust=30.,
     q_dustexpo=-3.5,
     f_grain=1.,  # grain filling factor
-    amin=1E-3,  # cm
+    amin=1E-4,  # cm
     amax=1.,  # cm, maximum grain size
-    Sigma_g=50.,  # g/cm2
+    Sigma_g=30.,  # g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
-    N_asizes=400,
-    GoNumba=True,
+    N_asizes=1000,
     nus=obsfreqs)
+
+#ZSED.calcul()
 
 ZMerit = SEDOptim.Merit(ExecTimeReport=False)
 domain = [
@@ -113,7 +122,7 @@ domain = [
     #['f_grain', 1., [0., 1.]],
     ['log(amax)', np.log10(1.), [np.log10(1E-3), np.log10(10.)]],  #cm
     ['log(Sigma_g)',
-     np.log10(50.), [np.log10(1E-5), np.log10(1E3)]]
+     np.log10(30.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
 domain_MCMC = domain
 domain_CG = [['log(Tdust)', np.log10(100.), [0., 3]],
@@ -123,8 +132,8 @@ domain_CG = [['log(Tdust)', np.log10(100.), [0., 3]],
 nvars = len(domain)
 print("nvars: ", nvars)
 SingleLOS=None
-SingleLOS=[12,12]
-SingleLOS=[16,16]
+#SingleLOS=[12,12]
+#SingleLOS=[16,16]
 
 Reportflags=SingleLOS is not None
 OptimM = SEDOptim.OptimM(
@@ -139,7 +148,7 @@ OptimM = SEDOptim.OptimM(
     Report=Reportflags,
     MCMCProgress=Reportflags,
     SummaryPlots=Reportflags,
-    Inherit_Init=True,
+    PhysicalInit=True,
     domain=domain,
     domain_CG=domain_CG,
     domain_MCMC=domain)
@@ -148,12 +157,12 @@ OptimM = SEDOptim.OptimM(
 ImOptim.exec_imoptim(OptimM,
                      ZSetup,
                      ZData,
-                     ASED,
+                     ZSED,
                      ZMerit,
                      hdu_canvas,
                      mfreq_imhdus,
                      mfreq_specindexhdus,
-                     n_cores_map=1,
+                     n_cores_map=6,
                      files_images=files_images,
                      files_specindex=files_specindex,
                      SingleLOS=SingleLOS,

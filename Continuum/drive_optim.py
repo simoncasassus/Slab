@@ -51,12 +51,12 @@ obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 
 ZSED = AModelSED.MSED(
     ZSetup,
-    Tdust=30,  # 
+    Tdust=300,  # 
     q_dustexpo=-3.5,  # 
     f_grain=1.,  # grain filling factor
     amin=1E-4,  # cm
-    amax=1.,  # 1 cm, maximum grain size
-    Sigma_g=30.,  # 50 g/cm2
+    amax=0.1,  # 1 cm, maximum grain size
+    Sigma_g=3.,  # 50 g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=1000,
@@ -182,12 +182,13 @@ domain_MCMC = [
 
 OptimM = SEDOptim.OptimM(
     RunMCMC=True,
-    MCMC_Nit=5000,  #MCMC iterations
+    MCMC_Nit=300,  #MCMC iterations
     nwalkers_pervar=10,
-    burn_in=4500,
+    burn_in=200,
     CGmaxiter=False,
     n_cores_MCMC=1,
     domain=domain,
+    PhysicalInit=True,
     domain_CG=domain_Powell,
     domain_MCMC=domain_MCMC)
 

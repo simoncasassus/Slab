@@ -21,7 +21,8 @@ import AModelSED
 
 c_MKS = const.c.value  # m/s
 
-def gengrid(freqs,ZSetup,filetag=''):
+
+def gengrid(freqs, ZSetup, filetag=''):
 
     nfreqs = len(freqs)
 
@@ -71,8 +72,8 @@ def gengrid(freqs,ZSetup,filetag=''):
     stackhdus_abs = []
     stackhdus_scat = []
     deltaqs = (qmax - qmin) / Ngrid_q
-    deltalogamax = (np.log10(largestamax) - np.log10(smallestamax)) * (1 /
-                                                                       Ngrid_amax)
+    deltalogamax = (np.log10(largestamax) -
+                    np.log10(smallestamax)) * (1 / Ngrid_amax)
     hdulabs = fits.HDUList()
     hdulscat = fits.HDUList()
     for ifreq, afreq in enumerate(freqs):
@@ -94,18 +95,18 @@ def gengrid(freqs,ZSetup,filetag=''):
         hdulabs.append(ahdu_abs)
         hdulscat.append(ahdu_scat)
 
-    hdulabs.writeto(ZSetup.outputdir + 'kappa_abs_grid'+filetag+'.fits', overwrite=True)
-    hdulscat.writeto(ZSetup.outputdir + 'kappa_scat_grid'+filetag+'.fits', overwrite=True)
+    hdulabs.writeto(ZSetup.outputdir + 'kappa_abs_grid' + filetag + '.fits',
+                    overwrite=True)
+    hdulscat.writeto(ZSetup.outputdir + 'kappa_scat_grid' + filetag + '.fits',
+                     overwrite=True)
 
 
-ZSetup = AModelSED.Setup(
-    opct_file='opct_mix.txt',
-    #outputdir='./output_grids/')
-    outputdir='./output_dev_optim_goInterp/')
+ZSetup = AModelSED.Setup(opct_file='opct_mix.txt',
+                         outputdir='./output_dev_imoptim/')
 
-freqs = np.array([100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 
-obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
+#obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
+obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
 
 #obsfreqs_alphas = np.array(
 #    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
@@ -113,6 +114,5 @@ obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 
-
-gengrid(obsfreqs,ZSetup,filetag='')
-gengrid(obsfreqs_alphas,ZSetup,filetag='_4alphas')
+gengrid(obsfreqs, ZSetup, filetag='')
+gengrid(obsfreqs_alphas, ZSetup, filetag='_4alphas')

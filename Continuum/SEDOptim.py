@@ -87,10 +87,10 @@ def summary_SEDs(nvar,
     nus = 10**lognus
     print("in summary SEDs ")
     #if ZSetup.GoInterp:
-    ZSetup.GoInterp=False
-    ZSetup.GoNearNeighbor1D=False
-    ASED.GoInterp=False
-    ASED.GoNearNeighbor1D=False
+    ZSetup.GoInterp = False
+    ZSetup.GoNearNeighbor1D = False
+    ASED.GoInterp = False
+    ASED.GoNearNeighbor1D = False
     ASED.nus = nus
     ASED.calcul(ForcePrep=True)
 
@@ -100,9 +100,8 @@ def summary_SEDs(nvar,
     #    assignfreeparams(names, mcmc_bestparams, ASED)
     #elif CGbestparams is not None:
     #    assignfreeparams(names, CGbestparams, ASED)
-    #ASED.calcul(ForcePrep=True)   # DEV DEV 
+    #ASED.calcul(ForcePrep=True)   # DEV DEV
 
-    
     Inorm = (ASED.nus / 100E9)**2
     plt.figure(figsize=(10, 4))
     WithSEDchains = False
@@ -238,7 +237,7 @@ def assignfreeparams(parnames, values, ASED):
         if m:
             aname = m.group(1)
             avalue = 10**(avalue)
-        #print("ASED assign:",aname,"<- ",avalue)  # DEV DEV 
+        #print("ASED assign:",aname,"<- ",avalue)
         setattr(ASED, aname, avalue)
 
 
@@ -283,10 +282,22 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
     start_time = time()
     ftol = 1E-10  # 1e-10 too small leads to abnormal termination
     eps = []
+
+    ndim = len(x_free)
+    for j in range(ndim):
+        lowerlimit = bnds[j][0]
+        upperlimit = bnds[j][1]
+        if (x_free[j] < lowerlimit):
+            print("param", names[j], " is out of range - lowlimit ")
+            x_free[j] = lowerlimit
+        if (x_free[j] > upperlimit):
+            print("param", names[j], " is out of range - uplimit ")
+            x_free[j] = upperlimit
+
     for ibnd, abnd in enumerate(bnds):
-        if ((x_free[ibnd] < abnd[0]) or (x_free[ibnd] > abnd[1])):
-            print("param ", names[ibnd], " is out of range")
-            sys.exit()
+        #if ((x_free[ibnd] < abnd[0]) or (x_free[ibnd] > abnd[1])):
+        #    print("param ", names[ibnd], " is out of range")
+        #    sys.exit()
         eps.append((abnd[1] - abnd[0]) / 100.)
     eps = np.array(eps)
     nll = lambda *args: -lnlike(*args)
@@ -294,15 +305,18 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
     #print("run_scipy_optimize_minimize",x_free_init)
     #print("ASED.nus",ASED.nus)
     ASED.calcul(ForcePrep=True)
-    
+    #ASED.calcul()
+
     ASED4alphas = None
     if ZData.nus_alphas is not None:
         ASED4alphas = AModelSED.MSED(ZSetup)
         ASED4alphas.copy(ASED)
         if ASED4alphas.GoInterp:
-            ASED4alphas.gridfiletag='_4alphas'
+            ASED4alphas.gridfiletag = '_4alphas'
         ASED4alphas.nus = ZData.nus_alphas
+        #print("in scipy optimize calcul 4alphas")
         ASED4alphas.calcul(ForcePrep=True)
+        #ASED4alphas.calcul()
 
     init_lnlike = lnlike(x_free_init, names, ZSetup, ZData, ASED, ASED4alphas,
                          ZMerit)
@@ -337,7 +351,6 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
 
     retvals = ZMerit.calcul(ZSetup, ZData, ASED, ASED4alphas=ASED4alphas)
 
-    
     if OptimM.Report:
         print("best_chi2 %e" % (-2. * best_lnlike))
 
@@ -358,7 +371,7 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     maxiter = OptimM.CGmaxiter
     ASED.nus = ZData.nus
-    
+
     names = list(map((lambda x: x[0]), OptimM.domain))
     sample_params = list(map((lambda x: x[1]), OptimM.domain))
     bnds = list(map((lambda x: x[2]), OptimM.domain))
@@ -384,10 +397,9 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     x_free = np.array(sample_params)
 
-    (result_ml,
-     errors_ml, retvals) = run_scipy_optimize_minimize(x_free, names, bnds, ZSetup,
-                                              ZData, ASED, ZMerit, OptimM)
-
+    (result_ml, errors_ml,
+     retvals) = run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData,
+                                            ASED, ZMerit, OptimM)
 
     if OptimM.Report:
         np.save(ZSetup.outputdir + 'result_ml.dat', result_ml)
@@ -414,7 +426,7 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
         modelalphas = retvals[2]
     else:
         modelalphas = []
-        
+
     #return names, result_ml
     return [names, result_ml, modelInus, modelalphas, achi2]
 
@@ -462,7 +474,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                 Tdust_init = Tbrightness(Inu_highest, nu_highest)
             if OptimM.Report:
                 print("Tdust_init", Tdust_init)
-                ASED.Tdust_0=Sigma_g_init
+                ASED.Tdust_0 = Sigma_g_init
             if OptimM.PhysicalInit and (Inu_highest > 0):
                 if dolog:
                     sample_params[iname] = np.log10(Tdust_init)
@@ -491,7 +503,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
             Sigma_g_init = tau0 / kappa_nu
             if OptimM.Report:
                 print("Sigma_g_init", Sigma_g_init)
-                ASED.Sigma_g_0=Sigma_g_init
+                ASED.Sigma_g_0 = Sigma_g_init
             if OptimM.PhysicalInit and (Inu_lowest > 0):
                 if dolog:
                     sample_params[iname] = np.log10(Sigma_g_init)
@@ -527,10 +539,13 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         ASED4alphas = AModelSED.MSED(ZSetup)
         ASED4alphas.copy(ASED)
         if ASED4alphas.GoInterp:
-            ASED4alphas.gridfiletag='_4alphas'
+            ASED4alphas.gridfiletag = '_4alphas'
         ASED4alphas.nus = ZData.nus_alphas
-        ASED4alphas.calcul(ForcePrep=True)
-        
+        #print("ASED4alphas.calcul")
+        ASED4alphas.calcul(ForcePrep=True)  #DEV
+        #ASED4alphas.calcul()
+        #print("ASED4alphas.calcul done")
+
     init_lnlike = lnlike(x_free, names, ZSetup, ZData, ASED, ASED4alphas,
                          ZMerit)
     if OptimM.Report:
@@ -748,7 +763,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         modelalphas = retvals[2]
     else:
         modelalphas = []
-        
+
     #print("retvals",retvals)
     if OptimM.Report:
         print("chi2 = %e" % (achi2))
@@ -774,7 +789,6 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                      nchains_4plots=nchains_4plots,
                      DoubleArrow=False)
 
-    
     return [names, mcmc_results, bestparams, modelInus, modelalphas, achi2]
 
 
@@ -785,10 +799,9 @@ def logL(ZData, ASED, ASED4alphas=False, Regul=False):
     else:
         chi2 = np.sum((ZData.Inus - ASED.Inus)**2 / ZData.sInus**2)
 
-    
     retvals = [chi2, ASED.Inus]
     # print("chi2  = ", chi2, " dofs ", len(ZData.Inus), ASED.Inus, ASED.Tdust, ASED.Sigma_g, ASED.amax, ASED.q_dustexpo, ZData.sInus)
-    
+
     if ASED4alphas:
         npairs = int(len(ASED4alphas.nus) / 2)
         alphas = np.zeros(npairs)
@@ -804,13 +817,13 @@ def logL(ZData, ASED, ASED4alphas=False, Regul=False):
         # print("chi2_alphas  = ", chi2_alphas, " dofs ", len(ZData.alphas))
         chi2 += chi2_alphas
         retvals.append(alphas)
-        retvals[0]=chi2
+        retvals[0] = chi2
     # print("chi2  = ", chi2)
 
     if Regul:
         regulterm = 0.
         LbdaMassRegul = 1E2
-        
+
         if ASED.Sigma_g > ASED.Sigma_g_0:
             SMassRegul = ((ASED.Sigma_g - ASED.Sigma_g_0) / ASED.Sigma_g_0)**2
             regulterm += LbdaMassRegul * SMassRegul
@@ -823,8 +836,8 @@ def logL(ZData, ASED, ASED4alphas=False, Regul=False):
         #    regulterm += LbdaOpacRegul * SOpacRegul
         #    #print("REgularizing Opac ", chi2, SOpacRegul)
         chi2 += regulterm
-        retvals[0]=chi2
-        
+        retvals[0] = chi2
+
     return retvals
 
 
@@ -881,10 +894,10 @@ class Data():
 class Merit():
 
     def __init__(
-            self,
-            VerboseInit=False,
-            ExecTimeReport=False,
-            Regul=False,
+        self,
+        VerboseInit=False,
+        ExecTimeReport=False,
+        Regul=False,
     ):
         initlocals = locals()
         initlocals.pop('self')
@@ -900,7 +913,6 @@ class Merit():
         if self.ExecTimeReport:
             time_start = time()
 
-            
         ASED.calcul()
         if self.ExecTimeReport:
             time_end_1 = time()
@@ -914,7 +926,7 @@ class Merit():
                       " s")
 
         #print("calling LogL ",ASED.Tdust,ASED.amax, ASED.Sigma_g, ASED.q_dustexpo, ASED.nus, ASED.Inus)
-        retvals = logL(ZData, ASED, ASED4alphas=ASED4alphas,Regul=self.Regul)
+        retvals = logL(ZData, ASED, ASED4alphas=ASED4alphas, Regul=self.Regul)
         #chi2 = retvals[0]
         #print("result ",retvals[0], ASED.nus,ASED.Inus, ASED4alphas.Inus, ASED.amax, )
 
@@ -964,4 +976,6 @@ class OptimM():
         return [names, mcmc_results, bestparams, modelInus, modelalphas]
 
     def ConjGrad(self, ZSetup, ZData, ASED, ZMerit):
-        return exec_ConjGrad(self, ZSetup, ZData, ASED, ZMerit)
+        [names, result_ml, modelInus, modelalphas,
+         achi2] = exec_ConjGrad(self, ZSetup, ZData, ASED, ZMerit)
+        return [names, result_ml, modelInus, modelalphas, achi2]

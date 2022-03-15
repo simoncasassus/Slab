@@ -193,6 +193,7 @@ def get_taus_and_kappas_interp2D_kernel(Sigma_g, N_freqs, i1, i2, j1, j2,
         omega_nu[ifreq] = tau_scat[ifreq] / (tau_scat[ifreq] + tau_abs[ifreq])
         epsilon_nu[ifreq] = 1.0 - omega_nu[ifreq]
 
+
 @jit(nopython=True)
 def get_kappa_as_numba_kernel(nlambdas, lambdas, nfs, kfs, rhoi, N_asizes,
                               a_sizes, kappa_as_abs, kappa_as_scat, f_grain):
@@ -405,15 +406,19 @@ class MSED(Setup):
         #                           self.N_asizes)
 
         if self.GoInterp:
+            #print("ForcePrep",ForcePrep,"self.kappa_abs_nus_grid",type(self.kappa_abs_nus_grid))
             if (self.kappa_abs_nus_grid is None) or ForcePrep:
-                print("init 2D interp")
-                filetag=self.gridfiletag
-                if os.path.exists(self.outputdir + 'kappa_abs_grid'+filetag+'.fits'):
-                    print("filetag",filetag)
+                #print("init 2D interp",type(self.kappa_abs_nus_grid),"ForcePrep",ForcePrep)
+                filetag = self.gridfiletag
+                if os.path.exists(self.outputdir + 'kappa_abs_grid' + filetag +
+                                  '.fits'):
+                    #print("filetag", filetag)
                     self.kappa_abs_hdulgrid = fits.open(self.outputdir +
-                                                        'kappa_abs_grid'+filetag+'.fits')
-                    self.kappa_scat_hdulgrid = fits.open(
-                        self.outputdir + 'kappa_scat_grid'+filetag+'.fits')
+                                                        'kappa_abs_grid' +
+                                                        filetag + '.fits')
+                    self.kappa_scat_hdulgrid = fits.open(self.outputdir +
+                                                         'kappa_scat_grid' +
+                                                         filetag + '.fits')
                     hdr = self.kappa_abs_hdulgrid[0].header
                     self.logamaxgrid = hdr['CRVAL2'] + hdr['CDELT2'] * (
                         np.arange(hdr['NAXIS2']) - (hdr['CRPIX2'] - 1))
@@ -428,11 +433,12 @@ class MSED(Setup):
 
                     gridshape = list(self.kappa_abs_hdulgrid[0].data.shape)
                     gridshape.insert(0, self.N_freqs)
-                    print("gridshape", gridshape)
+                    #xprint("gridshape", gridshape)
                     kappa_abs_nus_grid = np.zeros(gridshape)
                     kappa_scat_nus_grid = np.zeros(gridshape)
                     for ifreq in range(self.N_freqs):
-                        print("ifreq",ifreq,self.N_freqs,len(self.kappa_abs_hdulgrid))
+                        #print("ifreq", ifreq, self.N_freqs,
+                        #len(self.kappa_abs_hdulgrid))
                         kappa_abs_nus_grid[
                             ifreq, :, :] = self.kappa_abs_hdulgrid[ifreq].data
                         kappa_scat_nus_grid[
@@ -452,7 +458,8 @@ class MSED(Setup):
 
             if not self.GoNearNeighbor1D:
                 loga_sizes = (np.log10(self.amax) - np.log10(self.amin)) * (
-                    np.arange(self.N_asizes) / self.N_asizes) + np.log10(self.amin)
+                    np.arange(self.N_asizes) / self.N_asizes) + np.log10(
+                        self.amin)
                 self.a_sizes = 10**(loga_sizes)
 
             if (self.kappa_as_abs is None) or ForcePrep:
@@ -471,9 +478,9 @@ class MSED(Setup):
                       ForcePrep)
                 amax = self.amax
                 self.amax = self.amax_4grid
-                loga_sizes = (np.log10(self.amax) - np.log10(
-                    self.amin)) * (np.arange(self.N_asizes) /
-                                   self.N_asizes) + np.log10(self.amin)
+                loga_sizes = (np.log10(self.amax) - np.log10(self.amin)) * (
+                    np.arange(self.N_asizes) / self.N_asizes) + np.log10(
+                        self.amin)
                 self.a_sizes = 10**(loga_sizes)
                 self.get_kappa_as_numba()
                 self.kappa_as_abs_4nearneighbor1D = self.kappa_as_abs
@@ -482,9 +489,15 @@ class MSED(Setup):
                 self.kappa_as_scat_4nearneighbor1D = self.kappa_as_scat
                 self.amax = amax
 
-
     def copy(self, AnotherSED):
-        self.__dict__.update(AnotherSED.__dict__)
+        #self.__dict__.update(AnotherSED.__dict__)
+        attributes_source = AnotherSED.__dict__
+        for anattribute in attributes_source.keys():
+            value_source = getattr(AnotherSED, anattribute)
+            if isinstance(value_source, np.ndarray):
+                #print("found ndarray ", anattribute)
+                attributes_source[anattribute] = value_source.copy()
+        self.__dict__.update(attributes_source)
 
     def get_Sigma_as(self):
 
@@ -585,17 +598,32 @@ class MSED(Setup):
         dlogamax = self.logamaxgrid_delta
         i1 = math.floor((logamax - self.logamaxgrid_smallest) / dlogamax)
         i2 = i1 + 1
-        if i1 < 0 or i2 >= self.Nlogamaxgrid:
-            print("i1 ",i1,"i2",i2,"Nlogamaxgrid",self.Nlogamaxgrid)
-            sys.exit("extrapolate logamax?")
+        if i1 < 0:
+            i1 = 0
+            i2 = 1
+        if i2 >= self.Nlogamaxgrid:
+            i1 = int(self.Nlogamaxgrid - 2)
+            i2 = int(self.Nlogamaxgrid - 1)
+
+        #if i1 < 0 or i2 >= self.Nlogamaxgrid:
+        #    print("logamax",logamax,"beyond bounds")
+        #    print("i1 ", i1, "i2", i2, "Nlogamaxgrid", self.Nlogamaxgrid)
+        #    sys.exit("extrapolate logamax?")
 
         dq = self.qgrid_delta
         j1 = math.floor((q_dustexpo - self.qgrid_smallest) / dq)
         j2 = j1 + 1
-        if (j1 < 0) or (j2 >= self.Nqgrid):
-            print("q_dustexpo", q_dustexpo,"beyond bounds")
-            print("j1 ",j1,"j2",j2,"Nqgrid",self.Nqgrid)
-            sys.exit("extrapolate q_dustexpo?")
+        if (j1 < 0):
+            j1 = 0
+            j2 = 1
+        if (j2 >= self.Nqgrid):
+            j1 = int(self.Nqgrid - 2)
+            j2 = int(self.Nqgrid - 1)
+
+        #if (j1 < 0) or (j2 >= self.Nqgrid):
+        #    print("q_dustexpo", q_dustexpo, "beyond bounds")
+        #    print("j1 ", j1, "j2", j2, "Nqgrid", self.Nqgrid)
+        #    sys.exit("extrapolate q_dustexpo?")
 
         N_freqs = self.N_freqs
         kappa_abs_nus_grid = self.kappa_abs_nus_grid
@@ -605,7 +633,6 @@ class MSED(Setup):
                                             kappa_scat_nus_grid, kappa_abs,
                                             kappa_scat, tau_abs, tau_scat, tau,
                                             omega_nu, epsilon_nu)
-
 
         self.tau = tau
         self.tau_abs = tau_abs
@@ -667,7 +694,6 @@ class MSED(Setup):
 
         if self.GoNearNeighbor1D:
             ilogamax = self.ilogamax
-
 
         get_taus_and_kappas_numba_kernel(self.Sigma_g, self.N_freqs, ilogamax,
                                          self.Sigma_as, self.kappa_as_abs,

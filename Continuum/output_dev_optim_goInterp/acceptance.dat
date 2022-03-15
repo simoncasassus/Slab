@@ -1,4 +1,4 @@
-Execution done in:0.38995449940363563hNit = 5000 
+Execution done in:0.02181277275085449hNit = 300 
 nwalkers = 40 
 ndim = 4 
-mean acceptance fraction: 0.230 
+mean acceptance fraction: 0.300 

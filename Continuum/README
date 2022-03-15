@@ -7,6 +7,8 @@ example run for a single los.
 
 drive_optim.py:
 example SED optimization for a single los
+drive_optim_trueinitialconditions.py: initial condition already set to true values - usefull to explore impact of errors.  
+
 
 drive_imoptim.py:
 example optimization for multi-freq images

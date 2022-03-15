@@ -192,7 +192,7 @@ def get_im(profile,
            units='K',
            Smooth=False,
            CRVAL3=False,
-           outputdir='./data/',
+           outputdir='./mockdata/',
            fileout='Tdust.fits'):
 
     im_canvas_polar = hdupolar.data
@@ -219,7 +219,7 @@ def get_im(profile,
 ######################################################################
 ######################################################################
 
-outputdir = './data/'
+outputdir = './mockdata/'
 rrs, hdu_canvas, pixscale = load_canvas(
     './data/tclean_HD135344Bbriggs2.0_self.fits')
 
@@ -275,7 +275,7 @@ get_im(Sigma_g,
        hdu_canvas,
        hdupolar,
        units='K',
-       outputdir='./data/',
+       outputdir=outputdir,
        fileout='Sigma_g.fits')
 
 ######################################################################
@@ -300,7 +300,7 @@ get_im(amax,
        hdu_canvas,
        hdupolar,
        units='cm',
-       outputdir='./data/',
+       outputdir=outputdir,
        fileout='amax.fits')
 
 ######################################################################
@@ -327,7 +327,7 @@ get_im(qdustexpo,
        hdu_canvas,
        hdupolar,
        units='',
-       outputdir='./data/',
+       outputdir=outputdir,
        fileout='qdustexpo.fits')
 
 ######################################################################
@@ -348,7 +348,7 @@ get_im(Tdust,
        hdu_canvas,
        hdupolar,
        units='K',
-       outputdir='./data/',
+       outputdir=outputdir,
        fileout='Tdust.fits')
 
 ######################################################################
@@ -356,33 +356,44 @@ get_im(Tdust,
 ######################################################################
 # mock multifreq data
 
+#obsfreqs_alphas = np.array(
+#    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
+
+obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
+
 obsfreqs_alphas = np.array(
-    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
+    [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
 
 ZSetup = AModelSED.Setup(
     filetag='',  # False
-    Verbose=True,
     PrintChi2s=True,
     ClearOutputDir=False,
     GenFigs=False,
     opct_file='opct_mix.txt',
     VerboseInit=False,
-    outputdir='./data/')
+    outputdir=outputdir)
 
-ZSED = AModelSED.MSED(
-    ZSetup,
-    Tdust=20.,
-    q_dustexpo=-3.5,
-    f_grain=1.,  # grain filling factor
-    amin=1E-5,  # cm
-    amax=1.,  # cm, maximum grain size
-    Sigma_g=100. * 0.5,  # g/cm2
-    gtod_ratio=100.,
-    rho0=2.77,  # g/cm3
-    N_asizes=400,
-    nus=obsfreqs_alphas)
+#ZSED = AModelSED.MSED(
+#    ZSetup,
+#    Tdust=20.,
+#    q_dustexpo=-3.5,
+#    f_grain=1.,  # grain filling factor
+#    amin=1E-4,  # cm
+#    amax=1.,  # cm, maximum grain size
+#    Sigma_g=100. * 0.5,  # g/cm2
+#    gtod_ratio=100.,
+#    rho0=2.77,  # g/cm3
+#    N_asizes=1000,
+#    nus=obsfreqs)
 
-nfreqs = len(obsfreqs_alphas)
+allfreqs = obsfreqs
+for ifreq1, afreq1 in enumerate(obsfreqs_alphas):
+    if not (afreq1 in allfreqs):
+        allfreqs = np.append(allfreqs, afreq1)
+
+print("allfreqs",allfreqs)
+        
+nfreqs = len(allfreqs)
 obs_profiles = np.zeros([nfreqs, len(rs)])
 
 for ir, ar in enumerate(rs):
@@ -397,18 +408,18 @@ for ir, ar in enumerate(rs):
         gtod_ratio=100.,
         rho0=2.77,  # g/cm3
         N_asizes=400,
-        nus=obsfreqs_alphas)
+        nus=allfreqs)
     ASED.calcul()
     obs_profiles[:, ir] = ASED.Inus[:]
 
-for ifreq, afreq in enumerate(obsfreqs_alphas):
+for ifreq, afreq in enumerate(allfreqs):
     aprofile = omega_beam * obs_profiles[ifreq, :]
     aname = "I_%d.fits" % (afreq / 1E9)
     get_im(aprofile,
            hdu_canvas,
            hdupolar,
            units='Jy/beam',
-           outputdir='./data/',
+           outputdir=outputdir,
            Smooth=True,
            fileout=aname)
 
@@ -418,9 +429,9 @@ for ipair in range(npairs):
     nu2 = obsfreqs_alphas[int(ipair * 2 + 1)]
     aname_1 = "I_%d.fits" % (nu1 / 1E9)
     aname_2 = "I_%d.fits" % (nu2 / 1E9)
-    hdu1 = fits.open('./data/' + aname_1)
+    hdu1 = fits.open(outputdir + aname_1)
     im1 = hdu1[0].data
-    hdu2 = fits.open('./data/' + aname_2)
+    hdu2 = fits.open(outputdir + aname_2)
     im2 = hdu2[0].data
     specindex = np.log(im1 / im2) / np.log(nu1 / nu2)
     hdu1[0].data = specindex
@@ -428,4 +439,4 @@ for ipair in range(npairs):
     hdr1['BUNIT'] = ''
     hdu1[0].header = hdr1
     aname_1 = "specindec_%d.fits" % (nu1 / 1E9)
-    hdu1.writeto('./data/'+aname_1, overwrite=True)
+    hdu1.writeto(outputdir + aname_1, overwrite=True)
