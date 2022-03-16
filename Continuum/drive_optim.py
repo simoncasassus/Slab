@@ -71,7 +71,7 @@ ZSED.calcul()
 print("calculated mock SED ")
 obsInus = ZSED.Inus.copy()
 fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01, 0.01])
-fluxcal_accuracy = np.array([0.05, 0.05, 0.1, 0.1, 0.2])/2.
+fluxcal_accuracy = 0.*np.array([0.05, 0.05, 0.1, 0.1, 0.2])/2.
 sobsInus = np.sqrt((ZSED.Inus * fluxcal_accuracy)**2 + rmsnoises**2)
 AddNoise = False
 if AddNoise:
