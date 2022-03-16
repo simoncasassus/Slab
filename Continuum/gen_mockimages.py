@@ -224,11 +224,11 @@ def get_im(
         if Smooth:
             im_witnesss = Gauss_filter(im_witness, sigma_x, sigma_y, 0.)
             netnoise = np.std(im_witnesss)
-            print("netnoise",netnoise,"target noise",AddNoise)
-            noisedisp2 = noisedisp * (AddNoise * 1E-6/netnoise)
+            print("netnoise", netnoise, "target noise", AddNoise)
+            noisedisp2 = noisedisp * (AddNoise * 1E-6 / netnoise)
         else:
-            noisedisp2=noisedisp
-            
+            noisedisp2 = noisedisp
+
         im_witness = np.ones(im.shape)
         im_witness += np.random.normal(0., noisedisp2, size=im.shape)
         im = im + np.random.normal(0., noisedisp2, size=im.shape)
@@ -240,9 +240,9 @@ def get_im(
         im_witnesss = Gauss_filter(im_witness, sigma_x, sigma_y, 0.)
         im_spikes = Gauss_filter(im_spike, sigma_x, sigma_y, 0.)
         hdu[0].data = im_witnesss
-        hdu.writeto(outputdir+'snoise_witness.fits', overwrite=True)
+        hdu.writeto(outputdir + 'snoise_witness.fits', overwrite=True)
         hdu[0].data = im_spikes
-        hdu.writeto(outputdir+'spike_witness.fits', overwrite=True)
+        hdu.writeto(outputdir + 'spike_witness.fits', overwrite=True)
 
     hdu[0].data = im
     hdu[0].header = hdr
@@ -279,7 +279,7 @@ def extract_profile(hdu_im, rs, outputdir='./mockdata/', fileout='I1.dat'):
     save_prof[:, 2] = sIprof
     save_prof[:, 3] = dispIprof
 
-    Vtools.Spec([save_prof[:,0:2]])
+    #Vtools.Spec([save_prof[:, 0:2]])
 
     np.savetxt(outputdir + fileout, save_prof)
 
@@ -428,13 +428,16 @@ get_im(Tdust,
 #obsfreqs_alphas = np.array(
 #    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
 
+# https://almascience.eso.org/proposing/sensitivity-calculator
+# 2nd octile conditions, 1h integration
+
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
-rmsnoise = np.array([10, 10, 10, 10, 10])  #rms noise in uJy/beam
+rmsnoise = np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
 
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
-rmsnoise_alphas = np.array([10, 10, 10, 10, 10, 10, 10,
-                            10])  #rms noise in uJy/beam
+rmsnoise_alphas = np.array([9., 9., 9.5, 9.5, 12, 12, 21.6,
+                            21.6])  #rms noise in uJy/beam
 
 ZSetup = AModelSED.Setup(
     filetag='',  # False

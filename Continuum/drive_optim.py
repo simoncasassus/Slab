@@ -25,11 +25,12 @@ ZSetup = AModelSED.Setup(
     opct_file='opct_mix.txt',
     VerboseInit=False,
     GoInterp=True,
-    outputdir='output_dev_optim_goInterp/')
-    #outputdir='output_dev_optim/')
+    outputdir='output_dev_optim_goInterp_wrms/')
+#outputdir='output_dev_optim/')
 #outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
 
-obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
+obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
+rmsnoises = np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
 
 #Tdust 25.7
 #Sigma_g = 98.3
@@ -65,23 +66,24 @@ ZSED = AModelSED.MSED(
 ZSED.calcul()
 print("calculated mock SED ")
 obsInus = ZSED.Inus.copy()
-fluxcal_accuracy = 0.01
+fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01, 0.01])
+sobsInus = np.sqrt(ZSED.Inus * fluxcal_accuracy**2 + rmsnoises**2)
 AddNoise = False
 if AddNoise:
     for ifreq in range(len(obsInus)):
-        obsInus[ifreq] += np.random.normal(0.,
-                                           obsInus[ifreq] * fluxcal_accuracy,
-                                           1)
+        obsInus[ifreq] += np.random.normal(0., sobsInus[ifreq], 1)
 
 save_mockdata = np.zeros((len(obsfreqs), 3))
 save_mockdata[:, 0] = obsfreqs
 save_mockdata[:, 1] = obsInus
-save_mockdata[:, 2] = ZSED.Inus * fluxcal_accuracy
+save_mockdata[:, 2] = sobsInus
 
 np.savetxt(ZSetup.outputdir + 'mockSED.dat', save_mockdata)
 
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+rmsnoises_nu1s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+rmsnoises_nu2s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
 
 #obsfreqs_alphas = np.array(
 #    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
@@ -89,10 +91,9 @@ obsfreqs_alphas = np.array(
 ZSED4alphas = AModelSED.MSED(ZSetup)
 ZSED4alphas.copy(ZSED)
 if ZSED4alphas.GoInterp:
-    ZSED4alphas.gridfiletag='_4alphas'
+    ZSED4alphas.gridfiletag = '_4alphas'
 ZSED4alphas.nus = obsfreqs_alphas
 ZSED4alphas.calcul(ForcePrep=True)
-
 
 intraband_accuracy = 0.008
 npairs = 4
@@ -111,9 +112,17 @@ for ipair in range(npairs):
             ZSED4alphas.nus[2 * ipair + 1] / ZSED4alphas.nus[2 * ipair])
     obsnu2s[ipair] = ZSED4alphas.nus[2 * ipair + 1]
     obsnu1s[ipair] = ZSED4alphas.nus[2 * ipair]
-    sobsalphas[ipair] = (
-        1 / np.log(ZSED4alphas.nus[2 * ipair + 1] /
-                   ZSED4alphas.nus[2 * ipair])) * intraband_accuracy
+
+if rmsnoises_nu1s is not None:  # DEV DEV
+    Inu1s = obsInu1s
+    Inu2s = Inu1s * (obsnu2s / obsnu1s)**obsalphas
+    sigma_2 = np.sqrt((Inu2s * intraband_accuracy)**2 + rmsnoises_nu2s**2)
+    sigma_1 = rmsnoises_nu1s
+    sobsalphas = (1 / np.log(obsnu2s / obsnu1s)) * np.sqrt(
+        (sigma_2 / Inu2s)**2 + (sigma_1 / Inu1s)**2)
+else:
+    sobsalphas = (1 / np.log(obsnu2s / obsnu1s)) * intraband_accuracy
+
 
 if AddNoise:
     for ifreq in range(len(obsalphas)):
@@ -174,8 +183,7 @@ domain_MCMC = [
     ['log(Tdust)', np.log10(30.), [0., 3]],
     ['q_dustexpo', -3.5, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(1.), [np.log10(1E-3),
-                                   np.log10(10.)]],  #cm
+    ['log(amax)', np.log10(1.), [np.log10(1E-3), np.log10(10.)]],  #cm
     ['log(Sigma_g)',
      np.log10(30.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
@@ -213,6 +221,5 @@ print("modelInus", modelInus)
 print("modelalphas", modelalphas)
 
 OptimM.SummaryPlots = True
-OptimM.Inherit_Init=True
+OptimM.Inherit_Init = True
 OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
-

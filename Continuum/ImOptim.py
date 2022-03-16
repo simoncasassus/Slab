@@ -98,7 +98,7 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
 
     ASED = AModelSED.MSED(ZSetup)
     ASED.copy(ZSED)
-    
+
     OptimM.domain = OptimM.domain_MCMC
     [names, mcmc_results, bestparams, modelInus,
      modelalphas] = OptimM.MCMC(ZSetup, AData, ASED, ZMerit)
@@ -161,6 +161,9 @@ def exec_imoptim(OptimM,
     outputdir = ZSetup.outputdir
     obsnu2s = ZData.nu2s_alphas
     obsnu1s = ZData.nu1s_alphas
+    rmsnoises = ZData.rmsnoises
+    rmsnoises_nu1s = ZData.rmsnoises_nu1s
+    rmsnoises_nu2s = ZData.rmsnoises_nu2s
 
     imlogTdust = np.zeros(im_canvas.shape)
     supimlogTdust = np.zeros(im_canvas.shape)
@@ -208,12 +211,33 @@ def exec_imoptim(OptimM,
             AData = SEDOptim.Data()
             AData.copy(ZData)
             AData.Inus = np.array(Inus)
-            AData.sInus = np.array(Inus) * fluxcal_accuracy
+            if rmsnoises is not None:
+                AData.sInus = rmsnoises
+            else:
+                AData.sInus = np.array(Inus) * fluxcal_accuracy
             AData.alphas = np.array(specindexes)
-            AData.salphas = (1 /
-                             np.log(obsnu2s / obsnu1s)) * intraband_accuracy
-            tasks.append([ix, iy, AData])
             AData.Inu1s = AData.Inus.copy()
+            if rmsnoises_nu1s is not None:  # DEV DEV
+
+                DEV DEV generate spec index map errors in gen_mockimages
+                Inu1s = AData.Inu1s
+                print("ZData.Inu1s",AData.Inu1s)
+                print("ZData.nu2s_alphas",AData.nu2s_alphas)
+                print("ZData.nu1s_alphas",AData.nu1s_alphas)
+                print("ZData.nu1s_alphas",AData.alphas)
+                
+                Inu2s = AData.Inu1s * (AData.nu2s_alphas /
+                                       AData.nu1s_alphas)**AData.alphas
+                sigma_2 = np.sqrt((Inu2s * intraband_accuracy)**2 +
+                                  rmsnoises_nu2s**2)
+                sigma_1 = rmsnoises_nu1s
+                AData.salphas = (1 / np.log(obsnu2s / obsnu1s)) * np.sqrt(
+                    (sigma_2 / Inu2s)**2 + (sigma_1 / Inu1s)**2)
+            else:
+                AData.salphas = (
+                    1 / np.log(obsnu2s / obsnu1s)) * intraband_accuracy
+
+            tasks.append([ix, iy, AData])
 
     #        {'ZSetup': ZSetup,'ASED': ASED,'ZMerit': ZMerit}
 

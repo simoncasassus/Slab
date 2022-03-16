@@ -102,7 +102,8 @@ def gengrid(freqs, ZSetup, filetag=''):
 
 
 ZSetup = AModelSED.Setup(opct_file='opct_mix.txt',
-                         outputdir='./output_dev_imoptim/')
+                         #outputdir='./output_dev_imoptim/')
+                         outputdir='./output_dev_optim_goInterp_wrms/')
 
 
 #obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])

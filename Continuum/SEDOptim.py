@@ -851,6 +851,9 @@ class Data():
             ######################################################################
             nus=None,
             Inus=None,
+            rmsnoises=None,
+            rmsnoises_nu1s=None,
+            rmsnoises_nu2s=None,
             sInus=None,  # standard deviation error 
             nu1s_alphas=None,
             Inu1s=None,

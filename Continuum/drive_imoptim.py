@@ -65,6 +65,9 @@ ZSetup = AModelSED.Setup(
 
 #obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
+rmsnoises = np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
+rmsnoises_nu1s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+rmsnoises_nu2s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
 
 #fluxcal_accuracy = np.array([0.1, 0.1, 0.1, 0.1])
 fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01, 0.01])
@@ -89,6 +92,9 @@ ZData.nu1s_alphas = obsnu1s
 ZData.nu2s_alphas = obsnu2s
 ZData.nus_alphas = obsfreqs_alphas
 ZData.omega_beam = omega_beam
+ZData.rmsnoises = rmsnoises
+ZData.rmsnoises_nu1s = rmsnoises_nu1s
+ZData.rmsnoises_nu2s = rmsnoises_nu2s
 
 #npairs = len(obsnu1s)
 #allnus = np.zeros(int(2 * npairs))
@@ -133,7 +139,7 @@ nvars = len(domain)
 print("nvars: ", nvars)
 SingleLOS=None
 #SingleLOS=[12,12]
-#SingleLOS=[16,16]
+SingleLOS=[16,16]
 
 Reportflags=SingleLOS is not None
 OptimM = SEDOptim.OptimM(
