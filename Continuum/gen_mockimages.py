@@ -186,33 +186,102 @@ def z_func(r, z0, r0, r1, q):
     return (z0 * (r / r0)**q) * taper
 
 
-def get_im(profile,
-           hdu_canvas,
-           hdupolar,
-           units='K',
-           Smooth=False,
-           CRVAL3=False,
-           outputdir='./mockdata/',
-           fileout='Tdust.fits'):
+def get_im(
+        profile,
+        hdu_canvas,
+        hdupolar,
+        units='K',
+        Smooth=False,
+        AddNoise=False,  # umJy/beam
+        restfreq=False,
+        outputdir='./mockdata/',
+        fileout='Tdust.fits'):
 
     im_canvas_polar = hdupolar.data
     im_polar = np.zeros(im_canvas_polar.shape)
     im_polar[:, :] = profile[:, np.newaxis]
     im = polartocart(im_polar)
-    hdr_canvas = hdu_canvas[0].header
-    hdr_canvas['BUNIT'] = units
-    if CRVAL3:
-        #hdr_canvas['CRVAL3']=CRVAL3
-        hdr_canvas['OBSFREQ'] = CRVAL3
+    hdu = deepcopy(hdu_canvas)
+    hdr = hdu[0].header
+    hdr['BUNIT'] = units
+    if restfreq:
+        hdr['RESTFRQ'] = restfreq
+    Omegabeam_pix = 1.
     if Smooth:
-        sigma_x = hdr_canvas['BMAJ'] / hdr_canvas['CDELT2']
-        sigma_y = hdr_canvas['BMIN'] / hdr_canvas['CDELT2']
+        sigma_x = hdr_canvas['BMAJ'] / (2. * np.sqrt(2. * np.log(2)) *
+                                        hdr_canvas['CDELT2'])
+        sigma_y = hdr_canvas['BMIN'] / (2. * np.sqrt(2. * np.log(2)) *
+                                        hdr_canvas['CDELT2'])
+        Omegabeam_pix = (np.pi / (4. * np.log(2))) * (
+            hdr_canvas['BMAJ'] / hdr_canvas['CDELT2']) * (hdr_canvas['BMIN'] /
+                                                          hdr_canvas['CDELT2'])
+    if AddNoise:
+        noisedisp = AddNoise * 1E-6 * np.sqrt(Omegabeam_pix)
+        im_witness = np.zeros(im.shape)
+        im_witness += np.random.normal(0., noisedisp, size=im.shape)
+        #hdu[0].data = im_witness
+        #hdu.writeto('noise_witness.fits', overwrite=True)
+        if Smooth:
+            im_witnesss = Gauss_filter(im_witness, sigma_x, sigma_y, 0.)
+            netnoise = np.std(im_witnesss)
+            print("netnoise",netnoise,"target noise",AddNoise)
+            noisedisp2 = noisedisp * (AddNoise * 1E-6/netnoise)
+        else:
+            noisedisp2=noisedisp
+            
+        im_witness = np.ones(im.shape)
+        im_witness += np.random.normal(0., noisedisp2, size=im.shape)
+        im = im + np.random.normal(0., noisedisp2, size=im.shape)
+    if Smooth:
         ims = Gauss_filter(im, sigma_x, sigma_y, 0.)
         im = ims
+        im_spike = np.zeros(im.shape)
+        im_spike[int(hdr['CRPIX1']), int(hdr['CRPIX2'])] = 1.
+        im_witnesss = Gauss_filter(im_witness, sigma_x, sigma_y, 0.)
+        im_spikes = Gauss_filter(im_spike, sigma_x, sigma_y, 0.)
+        hdu[0].data = im_witnesss
+        hdu.writeto(outputdir+'snoise_witness.fits', overwrite=True)
+        hdu[0].data = im_spikes
+        hdu.writeto(outputdir+'spike_witness.fits', overwrite=True)
 
-    hdu_canvas[0].data = im
-    hdu_canvas[0].header = hdr_canvas
-    hdu_canvas.writeto(outputdir + fileout, overwrite=True)
+    hdu[0].data = im
+    hdu[0].header = hdr
+    hdu.writeto(outputdir + fileout, overwrite=True)
+    return hdu
+
+
+def extract_profile(hdu_im, rs, outputdir='./mockdata/', fileout='I1.dat'):
+
+    hdr = hdu[0].header
+    if 'BMAJ' in hdr.keys():
+        bmaj = hdr['BMAJ']
+        Nind = 2. * np.pi * rs / (bmaj * 3600.)
+        Nind[(Nind < 1.)] = 1.
+    else:
+        Nind = np.ones(rs.shape)
+
+    im = hdu_im[0].data
+    hdr = hdu_im[0].header
+
+    im_polar = carttopolar(im)
+    #Vtools.View(im_polar)
+    #Iprof = np.median(im_polar, axis=1)
+    Iprof = np.average(im_polar, axis=1)
+    dispIprof = np.std(im_polar, axis=1)
+    sIprof = dispIprof / np.sqrt(Nind)
+
+    if 'RESTFRQ' in hdr.keys():
+        fileout = 'Iprof_' + str(hdr['RESTFRQ'] / 1E9) + '.dat'
+
+    save_prof = np.zeros((len(rs), 4))
+    save_prof[:, 0] = rs
+    save_prof[:, 1] = Iprof
+    save_prof[:, 2] = sIprof
+    save_prof[:, 3] = dispIprof
+
+    Vtools.Spec([save_prof[:,0:2]])
+
+    np.savetxt(outputdir + fileout, save_prof)
 
 
 ######################################################################
@@ -360,9 +429,12 @@ get_im(Tdust,
 #    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
+rmsnoise = np.array([10, 10, 10, 10, 10])  #rms noise in uJy/beam
 
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
+rmsnoise_alphas = np.array([10, 10, 10, 10, 10, 10, 10,
+                            10])  #rms noise in uJy/beam
 
 ZSetup = AModelSED.Setup(
     filetag='',  # False
@@ -387,12 +459,14 @@ ZSetup = AModelSED.Setup(
 #    nus=obsfreqs)
 
 allfreqs = obsfreqs
+allrmss = rmsnoise
 for ifreq1, afreq1 in enumerate(obsfreqs_alphas):
     if not (afreq1 in allfreqs):
         allfreqs = np.append(allfreqs, afreq1)
+        allrmss = np.append(allrmss, rmsnoise_alphas[ifreq1])
 
-print("allfreqs",allfreqs)
-        
+print("allfreqs", allfreqs)
+
 nfreqs = len(allfreqs)
 obs_profiles = np.zeros([nfreqs, len(rs)])
 
@@ -413,15 +487,20 @@ for ir, ar in enumerate(rs):
     obs_profiles[:, ir] = ASED.Inus[:]
 
 for ifreq, afreq in enumerate(allfreqs):
+    armsnoise = allrmss[ifreq]
     aprofile = omega_beam * obs_profiles[ifreq, :]
     aname = "I_%d.fits" % (afreq / 1E9)
-    get_im(aprofile,
-           hdu_canvas,
-           hdupolar,
-           units='Jy/beam',
-           outputdir=outputdir,
-           Smooth=True,
-           fileout=aname)
+    hdu = get_im(
+        aprofile,
+        hdu_canvas,
+        hdupolar,
+        units='Jy/beam',
+        outputdir=outputdir,
+        restfreq=afreq,
+        AddNoise=armsnoise,  # umJy/beam
+        Smooth=True,
+        fileout=aname)
+    extract_profile(hdu, rs, outputdir=outputdir)
 
 npairs = int(len(obsfreqs_alphas) / 2)
 for ipair in range(npairs):
