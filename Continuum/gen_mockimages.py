@@ -506,6 +506,7 @@ for ifreq, afreq in enumerate(allfreqs):
     extract_profile(hdu, rs, outputdir=outputdir)
 
 npairs = int(len(obsfreqs_alphas) / 2)
+intraband_accuracy=0.008
 for ipair in range(npairs):
     nu1 = obsfreqs_alphas[int(ipair * 2)]
     nu2 = obsfreqs_alphas[int(ipair * 2 + 1)]
@@ -516,9 +517,25 @@ for ipair in range(npairs):
     hdu2 = fits.open(outputdir + aname_2)
     im2 = hdu2[0].data
     specindex = np.log(im1 / im2) / np.log(nu1 / nu2)
+
+
     hdu1[0].data = specindex
     hdr1 = hdu1[0].header
     hdr1['BUNIT'] = ''
     hdu1[0].header = hdr1
     aname_1 = "specindec_%d.fits" % (nu1 / 1E9)
+    hdu1.writeto(outputdir + aname_1, overwrite=True)
+
+    rmsnoises_nu2=rmsnoise_alphas[int(ipair * 2)]*1E-6
+    rmsnoises_nu1=rmsnoise_alphas[int(ipair * 2 + 1)]*1E-6
+    sigma_2 = np.sqrt((im2 * intraband_accuracy)**2 + rmsnoises_nu2**2)
+    sigma_1 = rmsnoises_nu1
+    sspecindex = (1 / np.log(nu2 / nu1)) * np.sqrt(
+        (sigma_2 / im2)**2 + (sigma_1 / im1)**2)
+
+    hdu1[0].data = sspecindex
+    hdr1 = hdu1[0].header
+    hdr1['BUNIT'] = ''
+    hdu1[0].header = hdr1
+    aname_1 = "sspecindec_%d.fits" % (nu1 / 1E9)
     hdu1.writeto(outputdir + aname_1, overwrite=True)

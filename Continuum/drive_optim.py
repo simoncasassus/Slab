@@ -31,6 +31,10 @@ ZSetup = AModelSED.Setup(
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
 rmsnoises = np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
+bmaj=0.04/3600. # 40mas beam
+omegabeam = (np.pi/(4.*np.log(2)))*(bmaj*np.pi/180.)**2
+rmsnoises /= omegabeam 
+rmsnoises *= 1E-6
 
 #Tdust 25.7
 #Sigma_g = 98.3
@@ -52,12 +56,12 @@ rmsnoises = np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
 
 ZSED = AModelSED.MSED(
     ZSetup,
-    Tdust=300,  # 
+    Tdust=30,  # 
     q_dustexpo=-3.5,  # 
     f_grain=1.,  # grain filling factor
     amin=1E-4,  # cm
-    amax=0.1,  # 1 cm, maximum grain size
-    Sigma_g=3.,  # 50 g/cm2
+    amax=1.,  # 1 cm, maximum grain size
+    Sigma_g=50.,  # 50 g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=1000,
@@ -67,7 +71,8 @@ ZSED.calcul()
 print("calculated mock SED ")
 obsInus = ZSED.Inus.copy()
 fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01, 0.01])
-sobsInus = np.sqrt(ZSED.Inus * fluxcal_accuracy**2 + rmsnoises**2)
+fluxcal_accuracy = np.array([0.05, 0.05, 0.1, 0.1, 0.2])/2.
+sobsInus = np.sqrt((ZSED.Inus * fluxcal_accuracy)**2 + rmsnoises**2)
 AddNoise = False
 if AddNoise:
     for ifreq in range(len(obsInus)):
@@ -82,8 +87,8 @@ np.savetxt(ZSetup.outputdir + 'mockSED.dat', save_mockdata)
 
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
-rmsnoises_nu1s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
-rmsnoises_nu2s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+rmsnoises_nu1s = 0.*np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+rmsnoises_nu2s = 0.*np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
 
 #obsfreqs_alphas = np.array(
 #    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
@@ -139,7 +144,7 @@ np.savetxt(ZSetup.outputdir + 'mockalphas.dat', save_mockdata)
 
 import SEDOptim
 
-ZData = SEDOptim.Data(file_obsInus=ZSetup.outputdir + 'mockSED.dat',
+ZData = SEDOptim.Data(file_obsInus=ZSetup.outputdir + 'mockSED.dat', omega_beam=omegabeam,
                       file_obsalphas=ZSetup.outputdir + 'mockalphas.dat')
 
 #ZData = SEDOptim.Data(file_obsInus=ZSetup.outputdir + 'mockSED.dat')
@@ -163,6 +168,7 @@ ASED.ExecTimeReport = False
 domain = [
     ['log(Tdust)', np.log10(30.), [0., 3]],
     ['q_dustexpo', -3.5, [-3.99, -2.]],
+    #['q_dustexpo', -3.5, [-3.6, -3.4]],
     #['f_grain', 1., [0., 1.]],
     ['log(amax)', np.log10(1.), [np.log10(1E-3), np.log10(10.)]],  #cm
     ['log(Sigma_g)',
@@ -182,6 +188,7 @@ domain_Powell = [
 domain_MCMC = [
     ['log(Tdust)', np.log10(30.), [0., 3]],
     ['q_dustexpo', -3.5, [-3.99, -2.]],
+    #['q_dustexpo', -3.5, [-3.6, -3.4]],
     #['f_grain', 1., [0., 1.]],
     ['log(amax)', np.log10(1.), [np.log10(1E-3), np.log10(10.)]],  #cm
     ['log(Sigma_g)',
@@ -190,9 +197,9 @@ domain_MCMC = [
 
 OptimM = SEDOptim.OptimM(
     RunMCMC=True,
-    MCMC_Nit=300,  #MCMC iterations
+    MCMC_Nit=10000,  #MCMC iterations
     nwalkers_pervar=10,
-    burn_in=200,
+    burn_in=8000,
     CGmaxiter=False,
     n_cores_MCMC=1,
     domain=domain,

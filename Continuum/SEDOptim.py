@@ -133,7 +133,7 @@ def summary_SEDs(nvar,
             ASED.nus / 1E9,
             ZData.omega_beam * ASED.Inus / Inorm,
             color='C3',
-            zorder=2,
+            zorder=-5,
             label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
             '\n' + Ztitle_CG)
 
@@ -157,7 +157,7 @@ def summary_SEDs(nvar,
         plt.plot(ASEDmedian.nus / 1E9,
                  ZData.omega_beam * ASEDmedian.Inus / Inorm,
                  color='C2',
-                 zorder=2,
+                 zorder=-10,
                  label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ median' + '\n' +
                  Ztitle_mcmc)
 
@@ -858,7 +858,7 @@ class Data():
             nu1s_alphas=None,
             Inu1s=None,
             omega_beam=(np.pi / (4. * np.log(2))) *
-        (0.040 * np.pi / (180. * 3600.))**2,  # C10 B3 beam
+        (0.040 * np.pi / (180. * 3600.))**2,  # sr - example is for C10 B3 beam
             nu2s_alphas=None,
             nus_alphas=None,
             alphas=None,
