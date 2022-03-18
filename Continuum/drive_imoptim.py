@@ -4,6 +4,7 @@ import matplotlib
 from astropy.io import fits
 from copy import deepcopy
 from functools import partial
+from pprint import pprint
 
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
@@ -32,49 +33,68 @@ import AModelSED
 import SEDOptim
 import ImOptim
 
+datadir='./mockdata_nothermalnoise/'
+datadir='./mockdata/'
+
 files_images = [
-    './mockdata/I_100.fits',
-    './mockdata/I_150.fits',
-    './mockdata/I_230.fits',
-    './mockdata/I_345.fits',
-    './mockdata/I_694.fits',
+    datadir+'I_100.fits',
+    datadir+'I_150.fits',
+    datadir+'I_230.fits',
+    datadir+'I_345.fits',
+    datadir+'I_694.fits',
 ]
 
 files_specindex = [
-    './mockdata/specindec_100.fits',
-    './mockdata/specindec_150.fits',
-    './mockdata/specindec_230.fits',
-    './mockdata/specindec_345.fits',
+    datadir+'specindec_100.fits',
+    datadir+'specindec_150.fits',
+    datadir+'specindec_230.fits',
+    datadir+'specindec_345.fits',
 ]
 
-hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, omega_beams = ImOptim.loaddata(
-    files_images, files_specindex, zoomfactor=8)
+files_errspecindex = [
+    datadir+'sspecindec_100.fits',
+    datadir+'sspecindec_150.fits',
+    datadir+'sspecindec_230.fits',
+    datadir+'sspecindec_345.fits',
+]
+
+outputdir = './output_dev_imoptim/'
+
+hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams = ImOptim.loaddata(
+    files_images,
+    files_specindex,
+    files_errspecindex,
+    zoomfactor=8,
+    outputdir=outputdir)
 
 omega_beam = omega_beams[0]
 
-outputdir = './output_dev_imoptim/'
 ZSetup = AModelSED.Setup(
     filetag='',  # False
     PrintChi2s=True,
     ClearOutputDir=False,
     GenFigs=False,
     GoInterp=True,
+    griddir='/home/simon/common/ppdisks/mfreq/opac_grids/',
     opct_file='opct_mix.txt',
     VerboseInit=False,
     outputdir=outputdir)
 
 #obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
+
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
-rmsnoises = np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
-rmsnoises_nu1s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
-rmsnoises_nu2s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+rmsnoises = 0.5*np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
+
+#rmsnoises_nu1s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+#rmsnoises_nu2s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+#for anoisevec in (rmsnoises, rmsnoises_nu1s, rmsnoises_nu2s):
+
 
 #fluxcal_accuracy = np.array([0.1, 0.1, 0.1, 0.1])
 fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01, 0.01])
 
 #obsfreqs_alphas = np.array(
 #    [100E9, 115E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
-
 
 obsnu1s = np.array([100E9, 150E9, 230E9, 345E9])
 
@@ -93,8 +113,8 @@ ZData.nu2s_alphas = obsnu2s
 ZData.nus_alphas = obsfreqs_alphas
 ZData.omega_beam = omega_beam
 ZData.rmsnoises = rmsnoises
-ZData.rmsnoises_nu1s = rmsnoises_nu1s
-ZData.rmsnoises_nu2s = rmsnoises_nu2s
+#ZData.rmsnoises_nu1s = rmsnoises_nu1s
+#ZData.rmsnoises_nu2s = rmsnoises_nu2s
 
 #npairs = len(obsnu1s)
 #allnus = np.zeros(int(2 * npairs))
@@ -103,7 +123,7 @@ ZData.rmsnoises_nu2s = rmsnoises_nu2s
 #    inu2 = int(2 * ipair + 1)
 #    allnus[inu1] = ZData.nu1s_alphas[ipair]
 #    allnus[inu2] = ZData.nu2s_alphas[ipair]
-    
+
 ZData.nus_alphas = obsfreqs_alphas
 
 ZSED = AModelSED.MSED(
@@ -137,17 +157,17 @@ domain_CG = [['log(Tdust)', np.log10(100.), [0., 3]],
 
 nvars = len(domain)
 print("nvars: ", nvars)
-SingleLOS=None
+SingleLOS = None
 #SingleLOS=[12,12]
-SingleLOS=[16,16]
+SingleLOS = [16, 16]
 
-Reportflags=SingleLOS is not None
+Reportflags = SingleLOS is not None
 OptimM = SEDOptim.OptimM(
     RunConjGrad=True,
     RunMCMC=True,
-    MCMC_Nit=300,  # 200 MCMC iterations
+    MCMC_Nit=1000,  # 200 MCMC iterations
     nwalkers_pervar=10,  # 10
-    burn_in=200,  #100
+    burn_in=800,  #100
     n_cores_MCMC=1,
     ChainPlots=Reportflags,
     CornerPlots=Reportflags,
@@ -155,9 +175,8 @@ OptimM = SEDOptim.OptimM(
     MCMCProgress=Reportflags,
     SummaryPlots=Reportflags,
     PhysicalInit=True,
-    domain=domain,
-    domain_CG=domain_CG,
-    domain_MCMC=domain)
+    domain=domain)
+
 
 
 ImOptim.exec_imoptim(OptimM,
@@ -168,7 +187,8 @@ ImOptim.exec_imoptim(OptimM,
                      hdu_canvas,
                      mfreq_imhdus,
                      mfreq_specindexhdus,
-                     n_cores_map=38,
+                     mfreq_errspecindexhdus,
+                     n_cores_map=1,
                      files_images=files_images,
                      files_specindex=files_specindex,
                      SingleLOS=SingleLOS,

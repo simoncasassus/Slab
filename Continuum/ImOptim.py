@@ -33,7 +33,7 @@ import AModelSED
 import SEDOptim
 
 
-def load_imagfile(file_data, zoomfactor=1., Debug=False):
+def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
 
     #f0 = fits.open(file)
     hdu = slice0(file_data, ReturnHDUList=True)
@@ -76,6 +76,12 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False):
     hdu[0].data = im
     hdu[0].header = hdr
 
+    StoreResamp = True
+    if StoreResamp:
+        hdu.writeto(outputdir + 'Iresamp_' + str(hdr['RESTFRQ'] / 1E9) +
+                    '.fits',
+                    overwrite=True)
+
     omega_beam = (np.pi / (4 * np.log(2))) * (hdr['BMAJ'] *
                                               hdr['BMIN']) * (np.pi / 180)**2
     return rrs, hdu, pixscale, omega_beam
@@ -99,27 +105,38 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
     ASED = AModelSED.MSED(ZSetup)
     ASED.copy(ZSED)
 
-    OptimM.domain = OptimM.domain_MCMC
-    [names, mcmc_results, bestparams, modelInus,
-     modelalphas] = OptimM.MCMC(ZSetup, AData, ASED, ZMerit)
+    #OptimM.domain = OptimM.domain_MCMC
+    [names, mcmc_results, bestparams, modelInus, modelalphas,
+     achi2] = OptimM.MCMC(ZSetup, AData, ASED, ZMerit)
 
     if OptimM.RunConjGrad:
         OptimM.Inherit_Init = True
+        ZSetup4Powell=deepcopy(ZSetup)
+        ZSetup4Powell.GoInterp=False
         [names, result_ml, modelInus, modelalphas,
-         achi2] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
-        bestparams = result_ml
+         Powellchi2] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
+        if (Powellchi2 < achi2):
+            bestparams = result_ml
+            achi2 = Powellchi2
 
-    passout = [pos, names, mcmc_results, bestparams, modelInus, modelalphas]
+    passout = [
+        pos, names, mcmc_results, bestparams, modelInus, modelalphas, achi2
+    ]
     return passout
 
 
-def loaddata(files_images, files_specindex, zoomfactor=8):
+def loaddata(files_images,
+             files_specindex,
+             files_errspecindex,
+             zoomfactor=8,
+             outputdir=''):
 
     mfreq_imhdus = []
     omega_beams = []
     for afile in files_images:
         rrs, hdu, pixscale, omega_beam = load_imagfile(afile,
-                                                       zoomfactor=zoomfactor)
+                                                       zoomfactor=zoomfactor,
+                                                       outputdir=outputdir)
         mfreq_imhdus.append(hdu)
         omega_beams.append(omega_beam)
 
@@ -135,8 +152,14 @@ def loaddata(files_images, files_specindex, zoomfactor=8):
             afile, zoomfactor=zoomfactor)
         mfreq_specindexhdus.append(hdu)
 
+    mfreq_errspecindexhdus = []
+    for afile in files_errspecindex:
+        rrs2, hdu, pixscale, omega_beam_b = load_imagfile(
+            afile, zoomfactor=zoomfactor)
+        mfreq_errspecindexhdus.append(hdu)
+
     print(len(mfreq_specindexhdus))
-    return hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, omega_beams
+    return hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams
 
 
 def exec_imoptim(OptimM,
@@ -147,6 +170,7 @@ def exec_imoptim(OptimM,
                  hdu_canvas,
                  mfreq_imhdus,
                  mfreq_specindexhdus,
+                 mfreq_errspecindexhdus,
                  n_cores_map=4,
                  files_images=None,
                  files_specindex=None,
@@ -162,8 +186,8 @@ def exec_imoptim(OptimM,
     obsnu2s = ZData.nu2s_alphas
     obsnu1s = ZData.nu1s_alphas
     rmsnoises = ZData.rmsnoises
-    rmsnoises_nu1s = ZData.rmsnoises_nu1s
-    rmsnoises_nu2s = ZData.rmsnoises_nu2s
+    #rmsnoises_nu1s = ZData.rmsnoises_nu1s
+    #rmsnoises_nu2s = ZData.rmsnoises_nu2s
 
     imlogTdust = np.zeros(im_canvas.shape)
     supimlogTdust = np.zeros(im_canvas.shape)
@@ -177,6 +201,7 @@ def exec_imoptim(OptimM,
     imlogSigma_g = np.zeros(im_canvas.shape)
     supimlogSigma_g = np.zeros(im_canvas.shape)
     sdoimlogSigma_g = np.zeros(im_canvas.shape)
+    chi2map = np.zeros(im_canvas.shape)
 
     modelimages = []
     for ifreq in range(nfreqs):
@@ -189,6 +214,9 @@ def exec_imoptim(OptimM,
 
     tasks = []
     nx, ny = im_canvas.shape
+    rmsnoises /= ZData.omega_beam
+    rmsnoises *= 1E-6
+
     for ix in range(nx):
         for iy in range(ny):
             #if not ((ix == 16) & (iy == 16)): local gap in Tdust
@@ -203,39 +231,32 @@ def exec_imoptim(OptimM,
                 aim = mfreq_imhdus[ifreq][0].data
                 aInu = aim[ix, iy] / omega_beams[ifreq]
                 Inus.append(aInu)
+
+            
+            print("Inus[0] < 3. * rmsnoises[0]",Inus[0],rmsnoises[0])
+            if (Inus[0] < 3. * rmsnoises[0]):
+                continue
+
+            errspecindexes = []
             for ispecindex in range(nspecindexs):
                 aspecindexmap = mfreq_specindexhdus[ispecindex][0].data
                 aspecindex = aspecindexmap[ix, iy]
                 specindexes.append(aspecindex)
+                aerrspecindexmap = mfreq_errspecindexhdus[ispecindex][0].data
+                aerrspecindex = aerrspecindexmap[ix, iy]
+                errspecindexes.append(aerrspecindex)
 
             AData = SEDOptim.Data()
             AData.copy(ZData)
             AData.Inus = np.array(Inus)
             if rmsnoises is not None:
-                AData.sInus = rmsnoises
+                AData.sInus = np.sqrt(rmsnoises**2 +
+                                      (np.array(Inus) * fluxcal_accuracy)**2)
             else:
                 AData.sInus = np.array(Inus) * fluxcal_accuracy
             AData.alphas = np.array(specindexes)
             AData.Inu1s = AData.Inus.copy()
-            if rmsnoises_nu1s is not None:  # DEV DEV
-
-                DEV DEV generate spec index map errors in gen_mockimages
-                Inu1s = AData.Inu1s
-                print("ZData.Inu1s",AData.Inu1s)
-                print("ZData.nu2s_alphas",AData.nu2s_alphas)
-                print("ZData.nu1s_alphas",AData.nu1s_alphas)
-                print("ZData.nu1s_alphas",AData.alphas)
-                
-                Inu2s = AData.Inu1s * (AData.nu2s_alphas /
-                                       AData.nu1s_alphas)**AData.alphas
-                sigma_2 = np.sqrt((Inu2s * intraband_accuracy)**2 +
-                                  rmsnoises_nu2s**2)
-                sigma_1 = rmsnoises_nu1s
-                AData.salphas = (1 / np.log(obsnu2s / obsnu1s)) * np.sqrt(
-                    (sigma_2 / Inu2s)**2 + (sigma_1 / Inu1s)**2)
-            else:
-                AData.salphas = (
-                    1 / np.log(obsnu2s / obsnu1s)) * intraband_accuracy
+            AData.salphas = np.array(errspecindexes)
 
             tasks.append([ix, iy, AData])
 
@@ -263,6 +284,9 @@ def exec_imoptim(OptimM,
         bestparams = alos[3]
         modelInus = alos[4]
         modelalphas = alos[5]
+        achi2 = alos[6]
+
+        chi2map[ix, iy] = achi2
 
         for ifreq in range(nfreqs):
             modelimages[ifreq][ix, iy] = modelInus[ifreq]

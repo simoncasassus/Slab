@@ -235,14 +235,15 @@ def get_im(
     if Smooth:
         ims = Gauss_filter(im, sigma_x, sigma_y, 0.)
         im = ims
-        im_spike = np.zeros(im.shape)
-        im_spike[int(hdr['CRPIX1']), int(hdr['CRPIX2'])] = 1.
-        im_witnesss = Gauss_filter(im_witness, sigma_x, sigma_y, 0.)
-        im_spikes = Gauss_filter(im_spike, sigma_x, sigma_y, 0.)
-        hdu[0].data = im_witnesss
-        hdu.writeto(outputdir + 'snoise_witness.fits', overwrite=True)
-        hdu[0].data = im_spikes
-        hdu.writeto(outputdir + 'spike_witness.fits', overwrite=True)
+        if AddNoise:
+            im_spike = np.zeros(im.shape)
+            im_spike[int(hdr['CRPIX1']), int(hdr['CRPIX2'])] = 1.
+            im_witnesss = Gauss_filter(im_witness, sigma_x, sigma_y, 0.)
+            im_spikes = Gauss_filter(im_spike, sigma_x, sigma_y, 0.)
+            hdu[0].data = im_witnesss
+            hdu.writeto(outputdir + 'snoise_witness.fits', overwrite=True)
+            hdu[0].data = im_spikes
+            hdu.writeto(outputdir + 'spike_witness.fits', overwrite=True)
 
     hdu[0].data = im
     hdu[0].header = hdr
@@ -289,6 +290,9 @@ def extract_profile(hdu_im, rs, outputdir='./mockdata/', fileout='I1.dat'):
 ######################################################################
 
 outputdir = './mockdata/'
+#outputdir = './mockdata_nothermalnoise/'
+os.system("mkdir "+outputdir)
+
 rrs, hdu_canvas, pixscale = load_canvas(
     './data/tclean_HD135344Bbriggs2.0_self.fits')
 
@@ -432,11 +436,11 @@ get_im(Tdust,
 # 2nd octile conditions, 1h integration
 
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])
-rmsnoise = np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
+rmsnoise = 0.5 * np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
 
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
-rmsnoise_alphas = np.array([9., 9., 9.5, 9.5, 12, 12, 21.6,
+rmsnoise_alphas = 0.5 * np.array([9., 9., 9.5, 9.5, 12, 12, 21.6,
                             21.6])  #rms noise in uJy/beam
 
 ZSetup = AModelSED.Setup(

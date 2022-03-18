@@ -26,14 +26,14 @@ def gengrid(freqs, ZSetup, filetag=''):
 
     nfreqs = len(freqs)
 
-    Ngrid_amax = 300
+    Ngrid_amax = 1000
     smallestamax = 5E-4  #cm
     largestamax = 15  # cm
     logamax = (np.log10(largestamax) - np.log10(smallestamax)) * (
         np.arange(Ngrid_amax) / Ngrid_amax) + np.log10(smallestamax)
     amaxs = 10**(logamax)
 
-    Ngrid_q = 300
+    Ngrid_q = 2000
     qmin = -3.99  #cm
     qmax = -1.5  # cm
     qs = (qmax - qmin) * (np.arange(Ngrid_q) / Ngrid_q) + qmin
@@ -104,7 +104,6 @@ def gengrid(freqs, ZSetup, filetag=''):
 ZSetup = AModelSED.Setup(opct_file='opct_mix.txt',
                          #outputdir='./output_dev_imoptim/')
                          outputdir='./output_dev_optim_goInterp_wrms/')
-
 
 #obsfreqs = np.array([100E9, 150E9, 230E9, 345E9])
 obsfreqs = np.array([100E9, 150E9, 230E9, 345E9, 694E9])

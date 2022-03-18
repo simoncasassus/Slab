@@ -24,7 +24,8 @@ ZSetup = AModelSED.Setup(
     GenFigs=True,
     opct_file='opct_mix.txt',
     VerboseInit=False,
-    GoInterp=True,
+    #GoNearNeighbor1D=True,
+    GoInterp=False,
     outputdir='output_dev_optim_goInterp_wrms/')
 #outputdir='output_dev_optim/')
 #outputdir='./output_optim_walphas_doublefreqlever_fluxcal1percent/')
@@ -56,12 +57,13 @@ rmsnoises *= 1E-6
 
 ZSED = AModelSED.MSED(
     ZSetup,
-    Tdust=30,  # 
-    q_dustexpo=-3.5,  # 
+    Tdust=31.4,  # 
+    q_dustexpo=-2.53,  # 
+    #q_dustexpo=-3.5,  # 
     f_grain=1.,  # grain filling factor
     amin=1E-4,  # cm
-    amax=1.,  # 1 cm, maximum grain size
-    Sigma_g=50.,  # 50 g/cm2
+    amax=0.987,  # 1 cm, maximum grain size
+    Sigma_g=97.7,  # 50 g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=1000,
@@ -71,7 +73,7 @@ ZSED.calcul()
 print("calculated mock SED ")
 obsInus = ZSED.Inus.copy()
 fluxcal_accuracy = np.array([0.01, 0.01, 0.01, 0.01, 0.01])
-fluxcal_accuracy = 0.*np.array([0.05, 0.05, 0.1, 0.1, 0.2])/2.
+#fluxcal_accuracy = np.array([0.05, 0.05, 0.1, 0.1, 0.2])/2.
 sobsInus = np.sqrt((ZSED.Inus * fluxcal_accuracy)**2 + rmsnoises**2)
 AddNoise = False
 if AddNoise:
@@ -87,8 +89,8 @@ np.savetxt(ZSetup.outputdir + 'mockSED.dat', save_mockdata)
 
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
-rmsnoises_nu1s = 0.*np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
-rmsnoises_nu2s = 0.*np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+rmsnoises_nu1s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
+rmsnoises_nu2s = np.array([9., 9.5, 12, 21.6])  #rms noise in uJy/beam
 
 #obsfreqs_alphas = np.array(
 #    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
@@ -175,50 +177,29 @@ domain = [
      np.log10(50.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
 
-domain_Powell = [
-    ['log(Tdust)', np.log10(100.), [0., 3]],
-    #['q_dustexpo', -3.0, [-3.99, -2.]],
-    #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(0.1), [np.log10(1E-3),
-                                  np.log10(10.)]],  #cm
-    ['log(Sigma_g)',
-     np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]
-]  # g/cm2
-
-domain_MCMC = [
-    ['log(Tdust)', np.log10(30.), [0., 3]],
-    ['q_dustexpo', -3.5, [-3.99, -2.]],
-    #['q_dustexpo', -3.5, [-3.6, -3.4]],
-    #['f_grain', 1., [0., 1.]],
-    ['log(amax)', np.log10(1.), [np.log10(1E-3), np.log10(10.)]],  #cm
-    ['log(Sigma_g)',
-     np.log10(30.), [np.log10(1E-5), np.log10(1E3)]]
-]  # g/cm2
 
 OptimM = SEDOptim.OptimM(
     RunMCMC=True,
-    MCMC_Nit=10000,  #MCMC iterations
+    MCMC_Nit=1000,  #MCMC iterations
     nwalkers_pervar=10,
-    burn_in=8000,
+    burn_in=900,
     CGmaxiter=False,
     n_cores_MCMC=1,
     domain=domain,
-    PhysicalInit=True,
-    domain_CG=domain_Powell,
-    domain_MCMC=domain_MCMC)
+    PhysicalInit=True)
 
 #OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
 #OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
 #print("ASED.Tdust",ASED.Tdust)
 
-OptimM.domain = domain_Powell
+#OptimM.domain = domain_Powell
 #OptimM.ConjGrad(ZSetup, ZData, ASED, ZMerit)
 
 #OptimM.Inherit_Init=True
 #print("ASED.Tdust",ASED.Tdust)
 
 OptimM.SummaryPlots = True
-OptimM.domain = OptimM.domain_MCMC
+#OptimM.domain = OptimM.domain_MCMC
 [names, mcmc_results, bestparams, modelInus,
  modelalphas] = OptimM.MCMC(ZSetup, ZData, ASED, ZMerit)
 print("names", names)

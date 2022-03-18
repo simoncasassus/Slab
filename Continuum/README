@@ -1,6 +1,6 @@
 gen_opacgrids.py:
 start here if using interpolation
-
+make sure frequencies are the same as in drive_*
 
 drive_slab.py:
 example run for a single los.

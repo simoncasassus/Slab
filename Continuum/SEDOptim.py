@@ -10,6 +10,7 @@ from scipy.interpolate import interp1d
 import scipy.optimize as op
 import cmath as cma
 
+from pprint import pprint
 import emcee
 import corner
 
@@ -85,22 +86,13 @@ def summary_SEDs(nvar,
     lognu2 = np.log10(700E9)
     lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
     nus = 10**lognus
-    print("in summary SEDs ")
-    #if ZSetup.GoInterp:
+
     ZSetup.GoInterp = False
     ZSetup.GoNearNeighbor1D = False
     ASED.GoInterp = False
     ASED.GoNearNeighbor1D = False
     ASED.nus = nus
     ASED.calcul(ForcePrep=True)
-
-    #ASED = AModelSED.MSED(ZSetup)
-    #ASED.nus = nus
-    #if mcmc_results is not None:
-    #    assignfreeparams(names, mcmc_bestparams, ASED)
-    #elif CGbestparams is not None:
-    #    assignfreeparams(names, CGbestparams, ASED)
-    #ASED.calcul(ForcePrep=True)   # DEV DEV
 
     Inorm = (ASED.nus / 100E9)**2
     plt.figure(figsize=(10, 4))
@@ -269,7 +261,9 @@ def lnprior(theta, bnds):
 
 
 def lnprob(x_free, parnames, bnds, ZSetup, ZData, ASED, ASED4alphas, ZMerit):
+
     lp = lnprior(x_free, bnds)
+
     if not np.isfinite(lp):
         return -np.inf
     return lp + lnlike(x_free, parnames, ZSetup, ZData, ASED, ASED4alphas,
@@ -392,6 +386,24 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
             if OptimM.Report:
                 print("Inherit_Init: ", aname, sample_params[iname])
 
+        for j in range(nvar):
+            lowerlimit = bnds[j][0]
+            upperlimit = bnds[j][1]
+            if (sample_params[j] < lowerlimit):
+                sample_params[j] = lowerlimit
+            if (sample_params[j] > upperlimit):
+                sample_params[j] = upperlimit
+        for j in range(nvar):
+            lowerlimit = bnds[j][0]
+            upperlimit = bnds[j][1]
+            bnds[j][0] = sample_params[j]-(sample_params[j] - lowerlimit) / 10.
+            bnds[j][1] = sample_params[j]+(upperlimit - sample_params[j]) / 10.
+            lowerlimit = bnds[j][0]
+            upperlimit = bnds[j][1]
+            if OptimM.Report:
+                print("inherit- narrow bounds:")
+                print(names[j],sample_params[j],lowerlimit,upperlimit)
+
     if OptimM.Report:
         print("nvar = ", nvar)
 
@@ -457,6 +469,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     sample_params = list(map((lambda x: x[1]), OptimM.domain))
     bnds = list(map((lambda x: x[2]), OptimM.domain))
     nvar = len(list(names))
+
+    pprint(OptimM.domain)
 
     #initial conditions
     Tdust_init = 3.
@@ -541,10 +555,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         if ASED4alphas.GoInterp:
             ASED4alphas.gridfiletag = '_4alphas'
         ASED4alphas.nus = ZData.nus_alphas
-        #print("ASED4alphas.calcul")
-        ASED4alphas.calcul(ForcePrep=True)  #DEV
-        #ASED4alphas.calcul()
-        #print("ASED4alphas.calcul done")
+        ASED4alphas.calcul(ForcePrep=True)
 
     init_lnlike = lnlike(x_free, names, ZSetup, ZData, ASED, ASED4alphas,
                          ZMerit)
@@ -567,7 +578,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        awalkerinit = sample_params + (1e-2 * np.random.randn(ndim) *
+        awalkerinit = sample_params + (1e-1 * np.random.randn(ndim) *
                                        allowed_ranges)
         #awalkerinit = sample_params + (np.random.randn(ndim) * allowed_ranges)
 
@@ -592,6 +603,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
         start = time()
         lnprobargs = [names, bnds, ZSetup, ZData, ASED, ASED4alphas, ZMerit]
+
         if n_cores > 1:
             with Pool(n_cores) as pool:
                 sampler = emcee.EnsembleSampler(nwalkers,
@@ -601,11 +613,14 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                                                 pool=pool)
                 sampler.run_mcmc(pos, Nit, progress=OptimM.MCMCProgress)
         else:
+            print("sample_params", sample_params)
+
             sampler = emcee.EnsembleSampler(nwalkers,
                                             ndim,
                                             lnprob,
                                             args=lnprobargs)
             sampler.run_mcmc(pos, Nit, progress=OptimM.MCMCProgress)
+
         end = time()
         emcee_time = end - start
         if OptimM.Report:
@@ -976,7 +991,7 @@ class OptimM():
     def MCMC(self, ZSetup, ZData, ASED, ZMerit):
         [names, mcmc_results, bestparams, modelInus, modelalphas,
          achi2] = exec_emcee(self, ZSetup, ZData, ASED, ZMerit)
-        return [names, mcmc_results, bestparams, modelInus, modelalphas]
+        return [names, mcmc_results, bestparams, modelInus, modelalphas, achi2]
 
     def ConjGrad(self, ZSetup, ZData, ASED, ZMerit):
         [names, result_ml, modelInus, modelalphas,

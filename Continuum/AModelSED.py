@@ -313,6 +313,7 @@ class Setup():
             VerboseInit=False,
             use_Kataoka=True,  # 4 grids
             outputdir='./output_dev/',
+            griddir='./opac_grids/',
             ######################################################################
             kappa_as_abs_4nearneighbor1D=None,
             kappa_as_scat_4nearneighbor1D=None,
@@ -410,13 +411,13 @@ class MSED(Setup):
             if (self.kappa_abs_nus_grid is None) or ForcePrep:
                 #print("init 2D interp",type(self.kappa_abs_nus_grid),"ForcePrep",ForcePrep)
                 filetag = self.gridfiletag
-                if os.path.exists(self.outputdir + 'kappa_abs_grid' + filetag +
+                if os.path.exists(self.griddir + 'kappa_abs_grid' + filetag +
                                   '.fits'):
                     #print("filetag", filetag)
-                    self.kappa_abs_hdulgrid = fits.open(self.outputdir +
+                    self.kappa_abs_hdulgrid = fits.open(self.griddir +
                                                         'kappa_abs_grid' +
                                                         filetag + '.fits')
-                    self.kappa_scat_hdulgrid = fits.open(self.outputdir +
+                    self.kappa_scat_hdulgrid = fits.open(self.griddir +
                                                          'kappa_scat_grid' +
                                                          filetag + '.fits')
                     hdr = self.kappa_abs_hdulgrid[0].header
