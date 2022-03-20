@@ -143,7 +143,7 @@ def loaddata(files_images,
     print(len(mfreq_imhdus))
     hdu_canvas = mfreq_imhdus[0]
 
-    hdu_canvas.writeto('canvas.fits', overwrite=True)
+    hdu_canvas.writeto(outputdir+'canvas.fits', overwrite=True)
     # Vtools.View(hdu_canvas)
 
     mfreq_specindexhdus = []
@@ -233,7 +233,7 @@ def exec_imoptim(OptimM,
                 Inus.append(aInu)
 
             
-            print("Inus[0] < 3. * rmsnoises[0]",Inus[0],rmsnoises[0])
+            # print("Inus[0] < 3. * rmsnoises[0]",Inus[0],rmsnoises[0])
             if (Inus[0] < 3. * rmsnoises[0]):
                 continue
 
@@ -289,7 +289,7 @@ def exec_imoptim(OptimM,
         chi2map[ix, iy] = achi2
 
         for ifreq in range(nfreqs):
-            modelimages[ifreq][ix, iy] = modelInus[ifreq]
+            modelimages[ifreq][ix, iy] = modelInus[ifreq] * ZData.omega_beam
         for ispecindex in range(nspecindexs):
             modelspecindexs[ispecindex][ix, iy] = modelalphas[ispecindex]
 

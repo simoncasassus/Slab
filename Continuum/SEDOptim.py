@@ -470,7 +470,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     bnds = list(map((lambda x: x[2]), OptimM.domain))
     nvar = len(list(names))
 
-    pprint(OptimM.domain)
+    #pprint(OptimM.domain)
 
     #initial conditions
     Tdust_init = 3.
@@ -613,7 +613,6 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                                                 pool=pool)
                 sampler.run_mcmc(pos, Nit, progress=OptimM.MCMCProgress)
         else:
-            print("sample_params", sample_params)
 
             sampler = emcee.EnsembleSampler(nwalkers,
                                             ndim,

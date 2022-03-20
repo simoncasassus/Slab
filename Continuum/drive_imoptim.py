@@ -159,7 +159,7 @@ nvars = len(domain)
 print("nvars: ", nvars)
 SingleLOS = None
 #SingleLOS=[12,12]
-SingleLOS = [16, 16]
+#SingleLOS = [16, 16]
 
 Reportflags = SingleLOS is not None
 OptimM = SEDOptim.OptimM(
@@ -188,7 +188,7 @@ ImOptim.exec_imoptim(OptimM,
                      mfreq_imhdus,
                      mfreq_specindexhdus,
                      mfreq_errspecindexhdus,
-                     n_cores_map=1,
+                     n_cores_map=38,
                      files_images=files_images,
                      files_specindex=files_specindex,
                      SingleLOS=SingleLOS,
