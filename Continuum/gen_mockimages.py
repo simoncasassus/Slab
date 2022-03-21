@@ -27,67 +27,7 @@ sys.path.append(include_path)
 
 import AModelSED
 
-
-def polar2cartesian(outcoords, inputshape, origin):
-    yindex, xindex = outcoords
-    x0, y0 = origin
-    nx = inputshape[0] - 1
-    ny = inputshape[1] - 1
-    x = -float(xindex) + x0
-    y = float(yindex) - y0
-
-    theta = np.arctan2(x, y)
-    if (theta < 0):
-        theta = theta + 2. * np.pi
-
-    thetaindex = (theta * nx / (2. * np.pi))
-    rindex = np.sqrt(x**2 + y**2)
-
-    return (rindex, thetaindex)
-
-
-def polartocart(im_polar):
-    nx, ny = im_polar.shape
-    im = sp.ndimage.geometric_transform(im_polar,
-                                        polar2cartesian,
-                                        order=0,
-                                        output_shape=(nx, ny),
-                                        extra_keywords={
-                                            'inputshape':
-                                            im_polar.shape,
-                                            'origin':
-                                            (((nx - 1) / 2), ((ny - 1) / 2))
-                                        })
-
-    return im
-
-
-def cartesian2polar(outcoords, inputshape, origin):
-
-    rindex, thetaindex = outcoords
-    x0, y0 = origin
-    theta = thetaindex * 2 * np.pi / (inputshape[0] - 1)
-    y = rindex * np.cos(theta)
-    x = rindex * np.sin(theta)
-    ix = -x + x0
-    iy = y + y0
-    return (iy, ix)
-
-
-def carttopolar(im):
-    nx, ny = im.shape[0], im.shape[1]
-    im_polar = sp.ndimage.geometric_transform(im,
-                                              cartesian2polar,
-                                              order=1,
-                                              output_shape=(nx, ny),
-                                              extra_keywords={
-                                                  'inputshape':
-                                                  im.shape,
-                                                  'origin': (((nx - 1) / 2),
-                                                             ((ny - 1) / 2))
-                                              })
-
-    return im_polar
+import PolarFuncs
 
 
 def load_canvas(file_canvas, zoomfactor=1., Debug=False):
@@ -200,7 +140,7 @@ def get_im(
     im_canvas_polar = hdupolar.data
     im_polar = np.zeros(im_canvas_polar.shape)
     im_polar[:, :] = profile[:, np.newaxis]
-    im = polartocart(im_polar)
+    im = PolarFuncs.polartocart(im_polar)
     hdu = deepcopy(hdu_canvas)
     hdr = hdu[0].header
     hdr['BUNIT'] = units
@@ -264,7 +204,7 @@ def extract_profile(hdu_im, rs, outputdir='./mockdata/', fileout='I1.dat'):
     im = hdu_im[0].data
     hdr = hdu_im[0].header
 
-    im_polar = carttopolar(im)
+    im_polar = PolarFuncs.carttopolar(im)
     #Vtools.View(im_polar)
     #Iprof = np.median(im_polar, axis=1)
     Iprof = np.average(im_polar, axis=1)
@@ -291,7 +231,7 @@ def extract_profile(hdu_im, rs, outputdir='./mockdata/', fileout='I1.dat'):
 
 outputdir = './mockdata/'
 #outputdir = './mockdata_nothermalnoise/'
-os.system("mkdir "+outputdir)
+os.system("mkdir " + outputdir)
 
 rrs, hdu_canvas, pixscale = load_canvas(
     './data/tclean_HD135344Bbriggs2.0_self.fits')
@@ -304,7 +244,7 @@ hdr_canvas['BMIN'] = resolution / (3600.)
 omega_beam = (np.pi / (4. * np.log(2))) * (resolution * np.pi /
                                            (180. * 3600.))**2  # C10 B3 beam
 
-im_canvas_polar = carttopolar(im_canvas)
+im_canvas_polar = PolarFuncs.carttopolar(im_canvas)
 nphis, nrs = im_canvas_polar.shape
 Debug = True
 if Debug:
@@ -328,7 +268,7 @@ pixscale = hdrpolar['CDELT2'] * 3600.  # arcsec
 
 origin_offset = pixscale
 rs = pixscale * (np.arange(hdrpolar['NAXIS2']) -
-                 np.arange(hdrpolar['CRPIX2'])) + origin_offset
+                 (hdrpolar['CRPIX2'] - 1)) + origin_offset
 
 ######################################################################
 pars = {'z0': 2., 'r0': 0.4, 'q': 6, 'r1': 0.45, 'r2': 0.8, 'pedestal': 0.02}
@@ -440,8 +380,8 @@ rmsnoise = 0.5 * np.array([9., 9.5, 12, 21.6, 313])  #rms noise in uJy/beam
 
 obsfreqs_alphas = np.array(
     [100E9, 130E9, 150E9, 165E9, 230E9, 245E9, 345E9, 360E9])
-rmsnoise_alphas = 0.5 * np.array([9., 9., 9.5, 9.5, 12, 12, 21.6,
-                            21.6])  #rms noise in uJy/beam
+rmsnoise_alphas = 0.5 * np.array([9., 9., 9.5, 9.5, 12, 12, 21.6, 21.6
+                                  ])  #rms noise in uJy/beam
 
 ZSetup = AModelSED.Setup(
     filetag='',  # False
@@ -510,7 +450,7 @@ for ifreq, afreq in enumerate(allfreqs):
     extract_profile(hdu, rs, outputdir=outputdir)
 
 npairs = int(len(obsfreqs_alphas) / 2)
-intraband_accuracy=0.008
+intraband_accuracy = 0.008
 for ipair in range(npairs):
     nu1 = obsfreqs_alphas[int(ipair * 2)]
     nu2 = obsfreqs_alphas[int(ipair * 2 + 1)]
@@ -522,7 +462,6 @@ for ipair in range(npairs):
     im2 = hdu2[0].data
     specindex = np.log(im1 / im2) / np.log(nu1 / nu2)
 
-
     hdu1[0].data = specindex
     hdr1 = hdu1[0].header
     hdr1['BUNIT'] = ''
@@ -530,12 +469,12 @@ for ipair in range(npairs):
     aname_1 = "specindec_%d.fits" % (nu1 / 1E9)
     hdu1.writeto(outputdir + aname_1, overwrite=True)
 
-    rmsnoises_nu2=rmsnoise_alphas[int(ipair * 2)]*1E-6
-    rmsnoises_nu1=rmsnoise_alphas[int(ipair * 2 + 1)]*1E-6
+    rmsnoises_nu2 = rmsnoise_alphas[int(ipair * 2)] * 1E-6
+    rmsnoises_nu1 = rmsnoise_alphas[int(ipair * 2 + 1)] * 1E-6
     sigma_2 = np.sqrt((im2 * intraband_accuracy)**2 + rmsnoises_nu2**2)
     sigma_1 = rmsnoises_nu1
-    sspecindex = (1 / np.log(nu2 / nu1)) * np.sqrt(
-        (sigma_2 / im2)**2 + (sigma_1 / im1)**2)
+    sspecindex = (1 / np.log(nu2 / nu1)) * np.sqrt((sigma_2 / im2)**2 +
+                                                   (sigma_1 / im1)**2)
 
     hdu1[0].data = sspecindex
     hdr1 = hdu1[0].header

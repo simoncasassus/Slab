@@ -78,6 +78,8 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
 
     StoreResamp = True
     if StoreResamp:
+        print("StoreResamp punching ",
+              outputdir + 'Iresamp_' + str(hdr['RESTFRQ'] / 1E9) + '.fits')
         hdu.writeto(outputdir + 'Iresamp_' + str(hdr['RESTFRQ'] / 1E9) +
                     '.fits',
                     overwrite=True)
@@ -92,6 +94,7 @@ def punchmap(im, hdu, units='', fileout='test.fits'):
     hdr['BUNIT'] = units
     hdu[0].header = hdr
     hdu[0].data = im
+    print("punching ", fileout)
     hdu.writeto(fileout, overwrite=True)
 
 
@@ -111,8 +114,8 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
 
     if OptimM.RunConjGrad:
         OptimM.Inherit_Init = True
-        ZSetup4Powell=deepcopy(ZSetup)
-        ZSetup4Powell.GoInterp=False
+        ZSetup4Powell = deepcopy(ZSetup)
+        ZSetup4Powell.GoInterp = False
         [names, result_ml, modelInus, modelalphas,
          Powellchi2] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
         if (Powellchi2 < achi2):
@@ -143,41 +146,44 @@ def loaddata(files_images,
     print(len(mfreq_imhdus))
     hdu_canvas = mfreq_imhdus[0]
 
-    hdu_canvas.writeto(outputdir+'canvas.fits', overwrite=True)
+    hdu_canvas.writeto(outputdir + 'canvas.fits', overwrite=True)
     # Vtools.View(hdu_canvas)
 
     mfreq_specindexhdus = []
     for afile in files_specindex:
         rrs2, hdu, pixscale, omega_beam_b = load_imagfile(
-            afile, zoomfactor=zoomfactor)
+            afile, zoomfactor=zoomfactor, outputdir=outputdir)
         mfreq_specindexhdus.append(hdu)
 
     mfreq_errspecindexhdus = []
     for afile in files_errspecindex:
         rrs2, hdu, pixscale, omega_beam_b = load_imagfile(
-            afile, zoomfactor=zoomfactor)
+            afile, zoomfactor=zoomfactor, outputdir=outputdir)
         mfreq_errspecindexhdus.append(hdu)
 
     print(len(mfreq_specindexhdus))
     return hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams
 
 
-def exec_imoptim(OptimM,
-                 ZSetup,
-                 ZData,
-                 ZSED,
-                 ZMerit,
-                 hdu_canvas,
-                 mfreq_imhdus,
-                 mfreq_specindexhdus,
-                 mfreq_errspecindexhdus,
-                 n_cores_map=4,
-                 files_images=None,
-                 files_specindex=None,
-                 omega_beams=[],
-                 fluxcal_accuracy=[],
-                 SingleLOS=None,
-                 intraband_accuracy=0.008):
+def exec_imoptim(
+        OptimM,
+        ZSetup,
+        ZData,
+        ZSED,
+        ZMerit,
+        hdu_canvas,
+        mfreq_imhdus,
+        mfreq_specindexhdus,
+        mfreq_errspecindexhdus,
+        n_cores_map=4,
+        intensity_threshold=[0, 5],  # ifreq, nthres
+        files_images=None,
+        files_specindex=None,
+        omega_beams=[],
+        fluxcal_accuracy=[],
+        shift_fluxcal=None,
+        SingleLOS=None,
+        intraband_accuracy=0.008):
 
     nfreqs = len(mfreq_imhdus)
     nspecindexs = len(mfreq_specindexhdus)
@@ -217,10 +223,17 @@ def exec_imoptim(OptimM,
     rmsnoises /= ZData.omega_beam
     rmsnoises *= 1E-6
 
+    fluxcal_factors = np.ones(nfreqs)
+    if shift_fluxcal is not None:
+        for ifreq in range(nfreqs):
+            asigmadev = shift_fluxcal[ifreq]
+            afactor = np.random.normal(1., asigmadev, 1)
+            fluxcal_factors[ifreq] = afactor
+        print("SHIFTING FLUX CALS BY: ", fluxcal_factors)
+        np.savetxt(outputdir + 'fluxcal_factors.txt', fluxcal_factors)
+
     for ix in range(nx):
         for iy in range(ny):
-            #if not ((ix == 16) & (iy == 16)): local gap in Tdust
-            #if not ((ix == 12) & (iy == 12)): local ring in Tdust?
             if SingleLOS is not None:
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
@@ -232,10 +245,15 @@ def exec_imoptim(OptimM,
                 aInu = aim[ix, iy] / omega_beams[ifreq]
                 Inus.append(aInu)
 
-            
             # print("Inus[0] < 3. * rmsnoises[0]",Inus[0],rmsnoises[0])
-            if (Inus[0] < 3. * rmsnoises[0]):
+            ifreq_thresh = intensity_threshold[0]
+            nthresh = intensity_threshold[1]
+            if (Inus[ifreq_thresh] < nthresh * rmsnoises[0]):
                 continue
+
+            Inus = np.array(Inus)
+            if shift_fluxcal is not None:
+                Inus *= fluxcal_factors
 
             errspecindexes = []
             for ispecindex in range(nspecindexs):
@@ -248,10 +266,11 @@ def exec_imoptim(OptimM,
 
             AData = SEDOptim.Data()
             AData.copy(ZData)
-            AData.Inus = np.array(Inus)
+            AData.Inus = Inus
             if rmsnoises is not None:
-                AData.sInus = np.sqrt(rmsnoises**2 +
-                                      (np.array(Inus) * fluxcal_accuracy)**2)
+                #AData.sInus = np.sqrt(rmsnoises**2 +
+                #                      (np.array(Inus) * fluxcal_accuracy)**2)
+                AData.sInus = rmsnoises
             else:
                 AData.sInus = np.array(Inus) * fluxcal_accuracy
             AData.alphas = np.array(specindexes)
@@ -350,3 +369,5 @@ def exec_imoptim(OptimM,
     punchmap(sdoimlogSigma_g,
              hdu_canvas,
              fileout=outputdir + 'sdoimlogSigma_g.fits')
+
+    punchmap(chi2map, hdu_canvas, fileout=outputdir + 'chi2map.fits')

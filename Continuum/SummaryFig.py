@@ -13,7 +13,7 @@ import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.signal import medfilt2d
 
-include_path = '/Users/simon/common/python/include/'
+include_path = '/home/simon/common/python/include/'
 sys.path.append(include_path)
 
 #import Vtools
