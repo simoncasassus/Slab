@@ -322,6 +322,7 @@ qdustexpo /= max(qdustexpo)
 qdustexpo0 = -3.5
 qdustexpo1 = -2.5
 qdustexpo = qdustexpo0 + qdustexpo * (qdustexpo1 - qdustexpo0)
+
 modprof3 = np.zeros((len(rs), 2))
 modprof3[:, 0] = rs - origin_offset
 modprof3[:, 1] = qdustexpo

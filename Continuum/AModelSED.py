@@ -39,20 +39,36 @@ def Plot_Opct(Opct, outputdir):
     plt.savefig(outputdir + fileout, bbox_inches='tight')
 
 
-def Plot_Inu(nus, Inus, overplots=[], outputdir='', fileout='fig_Inu.pdf'):
+def Plot_Inu(nus,
+             Inus,
+             overplots=[],
+             Nu2Norm=False,
+             outputdir='',
+             ExtraLabel='',
+             fileout='fig_Inu.pdf'):
     plt.figure(figsize=(10, 4))
+
+    Inorm = (nus / 100E9)**2
+
     for iover, aover in enumerate(overplots):
         anus = aover[0]
         aInus = aover[1]
+        if Nu2Norm:
+            aInus /= Inorm
         label = aover[2]
         plt.plot(anus / 1E9, aInus, label=label)
-    plt.plot(nus / 1E9, Inus, label=r'$I_\nu$')
+
+    label = r'$I_\nu$'
+    if Nu2Norm:
+        Inus /= Inorm
+        label = r'$I_\nu ~/ ~ (\nu / 100 {\rm GHz})^2$'
+    plt.plot(nus / 1E9, Inus, label=label + '\n'+ExtraLabel)
     #plt.plot(nus / 1E9, Inus[-1] * (nus / nus[-1])**2, label=r'$\nu^2$')
     #plt.ylabel('Jy/sr')
     plt.ylabel('Jy/beam')
     #plt.ylabel('Jy/brick')
     plt.xlabel(r'$\nu$ / GHz')
-    #plt.xscale('log')
+    plt.xscale('log')
     plt.yscale('log')
     plt.legend()
     plt.grid()
@@ -764,19 +780,23 @@ class MSED(Setup):
             time_4 = time()
             print("time for get_Inus :", time_4 - time_3, " s")
 
-    def get_Plot(self):
+    def get_Plot(self, drawBB=True, Nu2Norm=False, ExtraLabel=''):
         # omega_beam = np.pi * (0.05 * np.pi / (180. * 3600.))**2 # Baobab's brick
         omega_beam = (np.pi /
                       (4. * np.log(2))) * (0.040 * np.pi /
                                            (180. * 3600.))**2  # C10 B3 beam
-        BB = Bnu_Jy(self.nus, self.Tdust)
         #overplots=[ [self.nus,omega_beam*BB,'BB']]
-        overplots = [[self.nus, omega_beam * BB, 'BB']]
-        print("minimum BB/Inu:", min(BB / self.Inus))
+        overplots = []
+        if drawBB:
+            BB = Bnu_Jy(self.nus, self.Tdust)
+            overplots = [[self.nus, omega_beam * BB, 'BB']]
+            print("minimum BB/Inu:", min(BB / self.Inus))
         print("maximum tau:", max(self.tau))
         print("minimum tau:", min(self.tau))
         #Plot_Inu(self.nus, self.Inus * omega_beam, overplots=overplots, outputdir=self.outputdir)
         Plot_Inu(self.nus,
                  omega_beam * self.Inus,
                  overplots=overplots,
+                 Nu2Norm=Nu2Norm,
+                 ExtraLabel=ExtraLabel,
                  outputdir=self.outputdir)
