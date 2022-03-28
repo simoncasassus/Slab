@@ -5,12 +5,13 @@ import numpy as np
 import math
 import matplotlib
 from astropy.io import fits
-
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import cmath as cma
 from time import time
 from astropy import constants as const
+from pprint import pprint
+import dsharp_opac as opacity
 
 # matplotlib.use('Agg')
 
@@ -62,7 +63,7 @@ def Plot_Inu(nus,
     if Nu2Norm:
         Inus /= Inorm
         label = r'$I_\nu ~/ ~ (\nu / 100 {\rm GHz})^2$'
-    plt.plot(nus / 1E9, Inus, label=label + '\n'+ExtraLabel)
+    plt.plot(nus / 1E9, Inus, label=label + '\n' + ExtraLabel)
     #plt.plot(nus / 1E9, Inus[-1] * (nus / nus[-1])**2, label=r'$\nu^2$')
     #plt.ylabel('Jy/sr')
     plt.ylabel('Jy/beam')
@@ -327,7 +328,7 @@ class Setup():
             GenFigs=False,
             opct_file='opct_mix.txt',
             VerboseInit=False,
-            use_Kataoka=True,  # 4 grids
+            use_dsharp_opac=True,  # if false uses Kataoka+ 2014
             outputdir='./output_dev/',
             griddir='./opac_grids/',
             ######################################################################
@@ -491,8 +492,7 @@ class MSED(Setup):
 
         if self.GoNearNeighbor1D:
             if (self.kappa_as_abs_4nearneighbor1D is None) or ForcePrep:
-                print("computing opacity grid using Kataoka formulae",
-                      ForcePrep)
+                print("computing opacity grid using Kataoka formulae")
                 amax = self.amax
                 self.amax = self.amax_4grid
                 loga_sizes = (np.log10(self.amax) - np.log10(self.amin)) * (
@@ -728,6 +728,81 @@ class MSED(Setup):
         self.omega_nu = omega_nu
         self.epsilon_nu = epsilon_nu
 
+    def get_taus_and_kappas_dsharp(self):
+
+        if self.Verbose:
+            print("computing kappas usind dsharp_opac")
+        d = np.load(opacity.get_datafile('default_opacities_smooth.npz'))
+        a = d['a']
+        lam = d['lam']
+        k_abs = d['k_abs']
+        k_sca = d['k_sca']
+        gsca = d['g']
+
+        k_sca_eff = (1 - gsca) * k_sca
+        #eps_nu = k_abs / (k_abs + k_sca_eff)
+
+        # lam_avg = [0.1, 0.3]
+        lam_avg = const.c.cgs.value / self.nus  # lambdas in cm
+        q = -1 * self.q_dustexpo  #  [3.5]
+
+        #res = [
+        #    opacity.size_average_opacity(lam_avg,
+        #                                 a,
+        #                                 lam,
+        #                                 k_abs,
+        #                                 k_sca,
+        #                                 q=_q,
+        #                                 plot=False) for _q in q
+        #]
+
+        res_eff = opacity.size_average_opacity(lam_avg,
+                                               a,
+                                               lam,
+                                               k_abs,
+                                               k_sca_eff,
+                                               q=q,
+                                               plot=False)
+
+        kappa_abs_amaxs = res_eff['ka'] / 100
+        kappa_scat_amaxs = res_eff['ks'] / 100
+
+        kappa_abs = np.zeros(self.N_freqs)
+        kappa_scat = np.zeros(self.N_freqs)
+
+        for ifreq in range(self.N_freqs):
+            kappa_abs[ifreq] = np.interp(self.amax, a,
+                                         kappa_abs_amaxs[ifreq, :])
+            kappa_scat[ifreq] = np.interp(self.amax, a,
+                                          kappa_scat_amaxs[ifreq, :])
+
+        tau_abs = self.Sigma_g * kappa_abs
+        tau_scat = self.Sigma_g * kappa_scat
+        tau = tau_abs + tau_scat
+
+        omega_nu = tau_scat / (tau_scat + tau_abs)
+        epsilon_nu = 1.0 - omega_nu
+
+        pprint(res_eff)
+        print("a sizes dsharp ", len(a))
+        print("kappa_abs.shape", kappa_abs.shape)
+        #print("kappa_abs[10,0]",kappa_abs[10,0])
+        #print("kappa_abs[10,-1]",kappa_abs[10,-1])
+        #print("kappa_abs[10,100]",kappa_abs[10,100])
+
+        print("self.N_freqs", self.N_freqs)
+        print("self.nus.shape", self.nus.shape)
+        print("tau.shape", tau.shape)
+        print("omega_nu.shape", omega_nu.shape)
+
+        self.tau = tau
+        self.tau_abs = tau_abs
+        self.tau_scat = tau_scat
+        self.kappa_abs = kappa_abs
+        self.kappa_scat = kappa_scat
+        self.omega_nu = omega_nu
+        self.epsilon_nu = epsilon_nu
+
     def get_Inus(self):
         Inus = np.zeros(self.N_freqs)
 
@@ -748,7 +823,13 @@ class MSED(Setup):
         if self.ExecTimeReport:
             time_0 = time()
             print("time for prep::", time_0 - time_00, " s")
-        if self.GoInterp:
+        if self.use_dsharp_opac:
+            self.get_taus_and_kappas_dsharp()
+            if self.ExecTimeReport:
+                time_3 = time()
+                print("time for get_taus_and_kappas_dsharp :", time_3 - time_0,
+                      " s")
+        elif self.GoInterp:
             self.get_taus_and_kappas_interp()
             if self.ExecTimeReport:
                 time_3 = time()
