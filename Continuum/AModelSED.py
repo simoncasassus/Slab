@@ -78,6 +78,25 @@ def Plot_Inu(nus,
     plt.savefig(fileout, bbox_inches='tight')
 
 
+def Plot_kappa(nus, kappa_abs, kappa_scat, outputdir='', ExtraLabel='', fileout='fig_kappas.pdf'):
+    
+    plt.figure(figsize=(10, 4))
+
+    label_a = r'$\kappa^{\rm abs}_\nu$'
+    label_s = r'$\kappa^{\rm scat}_\nu$'
+    plt.plot(nus / 1E9, kappa_abs, label=label_a + '\n' + ExtraLabel)
+    plt.plot(nus / 1E9, kappa_scat, label=label_s + '\n' + ExtraLabel)
+    plt.ylabel(r'${\rm cm}^2 {\rm g}^{-1}$')
+    plt.xlabel(r'$\nu$ / GHz')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.legend()
+    plt.grid()
+    fileout = outputdir + fileout
+    print(fileout)
+    plt.savefig(fileout, bbox_inches='tight')
+
+
 def Bnu_Jy(freq, T):
 
     #     inputs:
@@ -367,6 +386,9 @@ class MSED(Setup):
             ExecTimeReport=False,
             GoNumba=True,
             Verbose=True,
+            omega_beam_4plots=(np.pi /
+                                 (4. * np.log(2))) * (0.040 * np.pi /
+                                                      (180. * 3600.))**2,  # C10 B3 beam
             ######################################################################
             Inus=[],
             Sigma_d=0,
@@ -733,6 +755,7 @@ class MSED(Setup):
         if self.Verbose:
             print("computing kappas usind dsharp_opac")
         d = np.load(opacity.get_datafile('default_opacities_smooth.npz'))
+        #d = np.load(opacity.get_datafile('default_opacities.npz'))
         a = d['a']
         lam = d['lam']
         k_abs = d['k_abs']
@@ -783,17 +806,17 @@ class MSED(Setup):
         omega_nu = tau_scat / (tau_scat + tau_abs)
         epsilon_nu = 1.0 - omega_nu
 
-        pprint(res_eff)
-        print("a sizes dsharp ", len(a))
-        print("kappa_abs.shape", kappa_abs.shape)
-        #print("kappa_abs[10,0]",kappa_abs[10,0])
-        #print("kappa_abs[10,-1]",kappa_abs[10,-1])
-        #print("kappa_abs[10,100]",kappa_abs[10,100])
-
-        print("self.N_freqs", self.N_freqs)
-        print("self.nus.shape", self.nus.shape)
-        print("tau.shape", tau.shape)
-        print("omega_nu.shape", omega_nu.shape)
+        #pprint(res_eff)
+        #print("a sizes dsharp ", len(a))
+        #print("kappa_abs.shape", kappa_abs.shape)
+        ##print("kappa_abs[10,0]",kappa_abs[10,0])
+        ##print("kappa_abs[10,-1]",kappa_abs[10,-1])
+        ##print("kappa_abs[10,100]",kappa_abs[10,100])
+        #
+        #print("self.N_freqs", self.N_freqs)
+        #print("self.nus.shape", self.nus.shape)
+        #print("tau.shape", tau.shape)
+        #print("omega_nu.shape", omega_nu.shape)
 
         self.tau = tau
         self.tau_abs = tau_abs
@@ -863,9 +886,7 @@ class MSED(Setup):
 
     def get_Plot(self, drawBB=True, Nu2Norm=False, ExtraLabel=''):
         # omega_beam = np.pi * (0.05 * np.pi / (180. * 3600.))**2 # Baobab's brick
-        omega_beam = (np.pi /
-                      (4. * np.log(2))) * (0.040 * np.pi /
-                                           (180. * 3600.))**2  # C10 B3 beam
+        omega_beam = self.omega_beam_4plots
         #overplots=[ [self.nus,omega_beam*BB,'BB']]
         overplots = []
         if drawBB:
@@ -881,3 +902,11 @@ class MSED(Setup):
                  Nu2Norm=Nu2Norm,
                  ExtraLabel=ExtraLabel,
                  outputdir=self.outputdir)
+
+    def get_kappa_Plot(self, drawBB=True, Nu2Norm=False, ExtraLabel=''):
+        Plot_kappa(self.nus,
+                   self.kappa_abs,
+                   self.kappa_scat,
+                   ExtraLabel=ExtraLabel,
+                   outputdir=self.outputdir)
+
