@@ -78,10 +78,10 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
 
     StoreResamp = True
     if StoreResamp:
-        print("StoreResamp punching ",
-              outputdir + 'Iresamp_' + str(hdr['RESTFRQ'] / 1E9) + '.fits')
-        hdu.writeto(outputdir + 'Iresamp_' + str(hdr['RESTFRQ'] / 1E9) +
-                    '.fits',
+        basefilename=os.path.basename(file_data)
+        fileresamp=re.sub('.fits','_resamp.fits',basefilename)
+        print("StoreResamp punching ", outputdir + fileresamp)
+        hdu.writeto(outputdir + fileresamp,
                     overwrite=True)
 
     omega_beam = (np.pi / (4 * np.log(2))) * (hdr['BMAJ'] *
@@ -136,12 +136,18 @@ def loaddata(files_images,
 
     mfreq_imhdus = []
     omega_beams = []
+    pixscaleref=None
     for afile in files_images:
         rrs, hdu, pixscale, omega_beam = load_imagfile(afile,
                                                        zoomfactor=zoomfactor,
                                                        outputdir=outputdir)
         mfreq_imhdus.append(hdu)
         omega_beams.append(omega_beam)
+        if pixscaleref is not None:
+            if ( np.fabs(pixscale-pixscaleref) > 1E-3):
+                sys.exit("align images first")
+            else:
+                pixscaleref = pixscale
 
     print(len(mfreq_imhdus))
     hdu_canvas = mfreq_imhdus[0]
