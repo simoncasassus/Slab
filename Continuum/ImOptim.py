@@ -270,9 +270,7 @@ def exec_imoptim(
                 recordfreqs.append(aFREQ)
 
             recordfreqs = np.array(recordfreqs)
-            print("recordfreqs", recordfreqs)
 
-            # print("Inus[0] < 3. * rmsnoises[0]",Inus[0],rmsnoises[0])
             ifreq_thresh = intensity_threshold[0]
             nthresh = intensity_threshold[1]
             if (Inus[ifreq_thresh] < nthresh * rmsnoises[0]):
