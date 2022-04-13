@@ -236,9 +236,6 @@ def exec_imoptim(
     xxs = hdr_canvas['CDELT1'] * 3600. * (iis - (hdr_canvas['CRPIX1'] - 1))
     yys = hdr_canvas['CDELT2'] * 3600. * (jjs - (hdr_canvas['CRPIX2'] - 1))
 
-    X0 = (float(nx) - 1) / 2.
-    Y0 = (float(ny) - 1) / 2.
-
     fluxcal_factors = np.ones(nfreqs)
     if shift_fluxcal is not None:
         for ifreq in range(nfreqs):
@@ -247,6 +244,12 @@ def exec_imoptim(
             fluxcal_factors[ifreq] = afactor
         print("SHIFTING FLUX CALS BY: ", fluxcal_factors)
         np.savetxt(outputdir + 'fluxcal_factors.txt', fluxcal_factors)
+
+    sigma_intraband_specindex = np.log(1. + intraband_accuracy) / np.log(
+        obsnu2s / obsnu1s)
+    shift_intraband_specindex = np.random.normal(0., sigma_intraband_specindex,
+                                                 len(obsnu2s))
+    print("SHIFTING intrabandspecindex by : ", shift_intraband_specindex)
 
     for ix in range(nx):
         for iy in range(ny):
@@ -266,9 +269,9 @@ def exec_imoptim(
                 Inus.append(aInu)
                 recordfreqs.append(aFREQ)
 
-            recordfreqs=np.array(recordfreqs)
-            print("recordfreqs",recordfreqs)
-            
+            recordfreqs = np.array(recordfreqs)
+            print("recordfreqs", recordfreqs)
+
             # print("Inus[0] < 3. * rmsnoises[0]",Inus[0],rmsnoises[0])
             ifreq_thresh = intensity_threshold[0]
             nthresh = intensity_threshold[1]
@@ -284,34 +287,48 @@ def exec_imoptim(
                 Inus *= fluxcal_factors
 
             errspecindexes = []
-            Inu1s=[]
+            Inu1s = []
+            nu1s = []
+            nu2s = []
             for ispecindex in range(nspecindexs):
                 aspecindexmap = mfreq_specindexhdus[ispecindex][0].data
                 aspecindexhdr = mfreq_specindexhdus[ispecindex][0].header
                 anu1 = int(aspecindexhdr['FREQ1'] / 1E9)
-                print("anu1 ", anu1)
-                inu1 = np.argmin(np.fabs(recordfreqs-anu1))
-                print("inu1 ",inu1)
+                anu2 = int(aspecindexhdr['FREQ2'] / 1E9)
+                if (anu2 < anu1):
+                    sys.exit("wrong order for specindexes")
+                inu1 = np.argmin(np.fabs(recordfreqs - anu1))
+                inu2 = np.argmin(np.fabs(recordfreqs - anu2))
+                print("inu1 ", inu1)
                 Inu1s.append(Inus[inu1])
-                
+                nu1s.append(anu1)
+                nu2s.append(anu2)
                 aspecindex = aspecindexmap[ix, iy]
                 specindexes.append(aspecindex)
                 aerrspecindexmap = mfreq_errspecindexhdus[ispecindex][0].data
                 aerrspecindex = aerrspecindexmap[ix, iy]
                 errspecindexes.append(aerrspecindex)
 
+            nu1s = np.array(nu1s)
+            nu2s = np.array(nu2s)
             AData = SEDOptim.Data()
             AData.copy(ZData)
             AData.Inus = Inus
             if rmsnoises is not None:
-                #AData.sInus = np.sqrt(rmsnoises**2 +
-                #                      (np.array(Inus) * fluxcal_accuracy)**2)
-                AData.sInus = rmsnoises
+                if shift_fluxcal is not None:
+                    AData.sInus = np.sqrt(rmsnoises**2 + (np.array(Inus) *
+                                                          fluxcal_accuracy)**2)
+                else:
+                    AData.sInus = rmsnoises
             else:
                 AData.sInus = np.array(Inus) * fluxcal_accuracy
-            AData.alphas = np.array(specindexes)
-            AData.Inu1s = np.array(Inu1s) # AData.Inus.copy()
-            AData.salphas = np.array(errspecindexes)
+            AData.alphas = np.array(specindexes)+shift_intraband_specindex
+            AData.Inu1s = np.array(Inu1s)  # AData.Inus.copy()
+            if shift_fluxcal is not None:
+                AData.salphas = np.array(errspecindexes)
+            else:
+                AData.salphas = np.array(errspecindexes) + (
+                    np.log(1. + intraband_accuracy) / np.log(nu2s / nu1s))
 
             tasks.append([ix, iy, AData])
 
