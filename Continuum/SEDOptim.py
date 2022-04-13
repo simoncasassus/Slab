@@ -990,7 +990,7 @@ class OptimM():
             MCMCProgress=True,
             PhysicalInit=False,  # use physically motivated initial conditions
             summarySED_axisscale='log',
-            summaryWithSEDchains=True,
+            summaryWithSEDchains=False,
             ######################################################################
             mcmc_results=[],
             mcmc_bestparams=[]):

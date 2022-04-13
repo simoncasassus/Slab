@@ -78,11 +78,10 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
 
     StoreResamp = True
     if StoreResamp:
-        basefilename=os.path.basename(file_data)
-        fileresamp=re.sub('.fits','_resamp.fits',basefilename)
+        basefilename = os.path.basename(file_data)
+        fileresamp = re.sub('.fits', '_resamp.fits', basefilename)
         print("StoreResamp punching ", outputdir + fileresamp)
-        hdu.writeto(outputdir + fileresamp,
-                    overwrite=True)
+        hdu.writeto(outputdir + fileresamp, overwrite=True)
 
     omega_beam = (np.pi / (4 * np.log(2))) * (hdr['BMAJ'] *
                                               hdr['BMIN']) * (np.pi / 180)**2
@@ -136,7 +135,7 @@ def loaddata(files_images,
 
     mfreq_imhdus = []
     omega_beams = []
-    pixscaleref=None
+    pixscaleref = None
     for afile in files_images:
         rrs, hdu, pixscale, omega_beam = load_imagfile(afile,
                                                        zoomfactor=zoomfactor,
@@ -144,7 +143,7 @@ def loaddata(files_images,
         mfreq_imhdus.append(hdu)
         omega_beams.append(omega_beam)
         if pixscaleref is not None:
-            if ( np.fabs(pixscale-pixscaleref) > 1E-3):
+            if (np.fabs(pixscale - pixscaleref) > 1E-3):
                 sys.exit("align images first")
             else:
                 pixscaleref = pixscale
@@ -198,6 +197,7 @@ def exec_imoptim(
     obsnu2s = ZData.nu2s_alphas
     obsnu1s = ZData.nu1s_alphas
     rmsnoises = ZData.rmsnoises
+
     #rmsnoises_nu1s = ZData.rmsnoises_nu1s
     #rmsnoises_nu2s = ZData.rmsnoises_nu2s
 
@@ -229,6 +229,16 @@ def exec_imoptim(
     rmsnoises /= ZData.omega_beam
     rmsnoises *= 1E-6
 
+    hdr_canvas = hdu_canvas[0].header
+    ivec = np.arange(0, nx)
+    jvec = np.arange(0, ny)
+    iis, jjs = np.meshgrid(ivec, jvec)
+    xxs = hdr_canvas['CDELT1'] * 3600. * (iis - (hdr_canvas['CRPIX1'] - 1))
+    yys = hdr_canvas['CDELT2'] * 3600. * (jjs - (hdr_canvas['CRPIX2'] - 1))
+
+    X0 = (float(nx) - 1) / 2.
+    Y0 = (float(ny) - 1) / 2.
+
     fluxcal_factors = np.ones(nfreqs)
     if shift_fluxcal is not None:
         for ifreq in range(nfreqs):
@@ -243,18 +253,30 @@ def exec_imoptim(
             if SingleLOS is not None:
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
-            #print("ix ", ix, " iy ", iy)
+                print("ix ", ix, " iy ", iy)
+                print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy])
             Inus = []
             specindexes = []
+            recordfreqs = []
             for ifreq in range(nfreqs):
                 aim = mfreq_imhdus[ifreq][0].data
+                ahdr = mfreq_imhdus[ifreq][0].header
+                aFREQ = int(ahdr['RESTFRQ'] / 1E9)
                 aInu = aim[ix, iy] / omega_beams[ifreq]
                 Inus.append(aInu)
+                recordfreqs.append(aFREQ)
 
+            recordfreqs=np.array(recordfreqs)
+            print("recordfreqs",recordfreqs)
+            
             # print("Inus[0] < 3. * rmsnoises[0]",Inus[0],rmsnoises[0])
             ifreq_thresh = intensity_threshold[0]
             nthresh = intensity_threshold[1]
             if (Inus[ifreq_thresh] < nthresh * rmsnoises[0]):
+                if SingleLOS is not None:
+                    print("below noise threshold, intensity is",
+                          Inus[ifreq_thresh], " noise is: ", rmsnoises[0])
+
                 continue
 
             Inus = np.array(Inus)
@@ -262,8 +284,16 @@ def exec_imoptim(
                 Inus *= fluxcal_factors
 
             errspecindexes = []
+            Inu1s=[]
             for ispecindex in range(nspecindexs):
                 aspecindexmap = mfreq_specindexhdus[ispecindex][0].data
+                aspecindexhdr = mfreq_specindexhdus[ispecindex][0].header
+                anu1 = int(aspecindexhdr['FREQ1'] / 1E9)
+                print("anu1 ", anu1)
+                inu1 = np.argmin(np.fabs(recordfreqs-anu1))
+                print("inu1 ",inu1)
+                Inu1s.append(Inus[inu1])
+                
                 aspecindex = aspecindexmap[ix, iy]
                 specindexes.append(aspecindex)
                 aerrspecindexmap = mfreq_errspecindexhdus[ispecindex][0].data
@@ -280,7 +310,7 @@ def exec_imoptim(
             else:
                 AData.sInus = np.array(Inus) * fluxcal_accuracy
             AData.alphas = np.array(specindexes)
-            AData.Inu1s = AData.Inus.copy()
+            AData.Inu1s = np.array(Inu1s) # AData.Inus.copy()
             AData.salphas = np.array(errspecindexes)
 
             tasks.append([ix, iy, AData])
