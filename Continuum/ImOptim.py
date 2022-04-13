@@ -190,6 +190,10 @@ def exec_imoptim(
         SingleLOS=None,
         intraband_accuracy=0.008):
 
+    if SingleLOS is None:
+        ZSetup.Verbose = False
+        ZSED.Verbose = False
+        
     nfreqs = len(mfreq_imhdus)
     nspecindexs = len(mfreq_specindexhdus)
     im_canvas = hdu_canvas[0].data
@@ -236,7 +240,7 @@ def exec_imoptim(
     xxs = hdr_canvas['CDELT1'] * 3600. * (iis - (hdr_canvas['CRPIX1'] - 1))
     yys = hdr_canvas['CDELT2'] * 3600. * (jjs - (hdr_canvas['CRPIX2'] - 1))
     rrs = np.sqrt(xxs**2 + yys**2)
-    
+
     fluxcal_factors = np.ones(nfreqs)
     if shift_fluxcal is not None:
         for ifreq in range(nfreqs):
@@ -258,7 +262,8 @@ def exec_imoptim(
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
                 print("ix ", ix, " iy ", iy)
-                print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy], "radius", rrs[ix,iy])
+                print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy], "radius",
+                      rrs[ix, iy])
             Inus = []
             specindexes = []
             recordfreqs = []
@@ -298,7 +303,6 @@ def exec_imoptim(
                     sys.exit("wrong order for specindexes")
                 inu1 = np.argmin(np.fabs(recordfreqs - anu1))
                 inu2 = np.argmin(np.fabs(recordfreqs - anu2))
-                print("inu1 ", inu1)
                 Inu1s.append(Inus[inu1])
                 nu1s.append(anu1)
                 nu2s.append(anu2)
@@ -321,7 +325,7 @@ def exec_imoptim(
                     AData.sInus = rmsnoises
             else:
                 AData.sInus = np.array(Inus) * fluxcal_accuracy
-            AData.alphas = np.array(specindexes)+shift_intraband_specindex
+            AData.alphas = np.array(specindexes) + shift_intraband_specindex
             AData.Inu1s = np.array(Inu1s)  # AData.Inus.copy()
             if shift_fluxcal is not None:
                 AData.salphas = np.array(errspecindexes)
