@@ -235,7 +235,8 @@ def exec_imoptim(
     iis, jjs = np.meshgrid(ivec, jvec)
     xxs = hdr_canvas['CDELT1'] * 3600. * (iis - (hdr_canvas['CRPIX1'] - 1))
     yys = hdr_canvas['CDELT2'] * 3600. * (jjs - (hdr_canvas['CRPIX2'] - 1))
-
+    rrs = np.sqrt(xxs**2 + yys**2)
+    
     fluxcal_factors = np.ones(nfreqs)
     if shift_fluxcal is not None:
         for ifreq in range(nfreqs):
@@ -257,7 +258,7 @@ def exec_imoptim(
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
                 print("ix ", ix, " iy ", iy)
-                print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy])
+                print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy], "radius", rrs[ix,iy])
             Inus = []
             specindexes = []
             recordfreqs = []
