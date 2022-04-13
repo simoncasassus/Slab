@@ -4,7 +4,7 @@ import re
 import numpy as np
 import matplotlib
 from time import time
-
+from copy import deepcopy
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import scipy.optimize as op
@@ -45,10 +45,17 @@ def summary_SEDs(nvar,
                  mcmc_bestparams=None,
                  mcmc_results_0=None,
                  chains=None,
+                 WithSEDchains=False,
                  nchains_4plots=1000,
+                 xscale='log',
+                 yscale='log',
                  filename='fig_bestfit.png',
                  DoubleArrow=True):
-    workdir = ZSetup.outputdir
+
+    ZSetup4plots=deepcopy(ZSetup)
+    ASED4plots=deepcopy(ASED)
+    
+    workdir = ZSetup4plots.outputdir
     Ztitle_maxL = ''
     Ztitle_CG = 'Powell '
     Ztitle_mcmc = ''
@@ -64,7 +71,7 @@ def summary_SEDs(nvar,
             maxLvalueCG = CGbestparams[iparam]
             if dolog:
                 maxLvalueCG = 10**(maxLvalueCG)
-            Ztitle_CG = Ztitle_CG + name + r'= %.1f ' % (maxLvalueCG)
+            Ztitle_CG = Ztitle_CG + name + r'= %.2f ' % (maxLvalueCG)
 
         if mcmc_results is not None:
             parmcmc_results = mcmc_results[iparam]
@@ -77,8 +84,8 @@ def summary_SEDs(nvar,
                 downerror = 10**(value) - 10**(value - downerror)
                 value = 10**(value)
                 maxLvalue = 10**(maxLvalue)
-            Ztitle_maxL = Ztitle_maxL + name + r'= %.1f ' % (maxLvalue)
-            Ztitle_mcmc = Ztitle_mcmc + name + r'= %.1f$^{+%.1f}_{-%.1f}$ ' % (
+            Ztitle_maxL = Ztitle_maxL + name + r'= %.2f ' % (maxLvalue)
+            Ztitle_mcmc = Ztitle_mcmc + name + r'= %.2f$^{+%.2f}_{-%.2f}$ ' % (
                 value, uperror, downerror)
 
     N_freqs = 100
@@ -87,75 +94,73 @@ def summary_SEDs(nvar,
     lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
     nus = 10**lognus
 
-    ZSetup.GoInterp = False
-    ZSetup.GoNearNeighbor1D = False
-    ASED.GoInterp = False
-    ASED.GoNearNeighbor1D = False
-    ASED.nus = nus
-    ASED.calcul(ForcePrep=True)
+    ZSetup4plots.GoInterp = False
+    ZSetup4plots.GoNearNeighbor1D = False
+    ASED4plots.GoInterp = False
+    ASED4plots.GoNearNeighbor1D = False
+    ASED4plots.nus = nus
+    ASED4plots.calcul(ForcePrep=True)
 
-    Inorm = (ASED.nus / 100E9)**2
+    Inorm = (ASED4plots.nus / 100E9)**2
     plt.figure(figsize=(10, 4))
-    WithSEDchains = False
     if chains is not None:
-        WithSEDchains = True
         nchains, nvars = chains.shape
         print("nchains ", nchains, " nvars ", nvars)
 
-    ASEDparams = AModelSED.MSED(ZSetup)
-    ASEDparams.copy(ASED)
+    ASED4plotsparams = AModelSED.MSED(ZSetup4plots)
+    ASED4plotsparams.copy(ASED4plots)
     if WithSEDchains:
         print("plotting ", nchains_4plots, " sample SEDs")
         for ichain in range(nchains_4plots):
             #print("ichain", ichain)
             apars = chains[nchains - nchains_4plots + ichain, :]
-            assignfreeparams(names, apars, ASEDparams)
-            ASEDparams.calcul()
-            plt.plot(ASEDparams.nus / 1E9,
-                     ZData.omega_beam * ASEDparams.Inus / Inorm,
+            assignfreeparams(names, apars, ASED4plotsparams)
+            ASED4plotsparams.calcul()
+            plt.plot(ASED4plotsparams.nus / 1E9,
+                     ZData.omega_beam * ASED4plotsparams.Inus / Inorm,
                      alpha=0.002,
                      lw=0.5,
                      zorder=-32,
                      color='grey')
 
     if CGbestparams is not None:
-        assignfreeparams(names, CGbestparams, ASED)
-        ASED.calcul()
+        assignfreeparams(names, CGbestparams, ASED4plots)
+        ASED4plots.calcul()
         plt.plot(
-            ASED.nus / 1E9,
-            ZData.omega_beam * ASED.Inus / Inorm,
+            ASED4plots.nus / 1E9,
+            ZData.omega_beam * ASED4plots.Inus / Inorm,
             color='C3',
             zorder=-5,
             label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
             '\n' + Ztitle_CG)
 
     if mcmc_results:
-        assignfreeparams(names, mcmc_bestparams, ASED)
-        ASED.calcul()
+        assignfreeparams(names, mcmc_bestparams, ASED4plots)
+        ASED4plots.calcul()
 
         plt.plot(
-            ASED.nus / 1E9,
-            ZData.omega_beam * ASED.Inus / Inorm,
+            ASED4plots.nus / 1E9,
+            ZData.omega_beam * ASED4plots.Inus / Inorm,
             color='C0',
             zorder=2,
             label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
             '\n' + Ztitle_maxL)
 
-        ASEDmedian = AModelSED.MSED(ZSetup)
-        ASEDmedian.copy(ASED)
-        assignfreeparams(names, mcmc_results_0, ASEDmedian)
-        ASEDmedian.calcul()
+        ASED4plotsmedian = AModelSED.MSED(ZSetup4plots)
+        ASED4plotsmedian.copy(ASED4plots)
+        assignfreeparams(names, mcmc_results_0, ASED4plotsmedian)
+        ASED4plotsmedian.calcul()
 
-        plt.plot(ASEDmedian.nus / 1E9,
-                 ZData.omega_beam * ASEDmedian.Inus / Inorm,
+        plt.plot(ASED4plotsmedian.nus / 1E9,
+                 ZData.omega_beam * ASED4plotsmedian.Inus / Inorm,
                  color='C2',
                  zorder=-10,
                  label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ median' + '\n' +
                  Ztitle_mcmc)
 
         # ensure numpy arrays are reset to mcmc_bestparams
-        assignfreeparams(names, mcmc_bestparams, ASED)
-        ASED.calcul()
+        assignfreeparams(names, mcmc_bestparams, ASED4plots)
+        ASED4plots.calcul()
 
     Inorm_Data = (ZData.nus / 100E9)**2
     plt.errorbar(ZData.nus / 1E9,
@@ -211,8 +216,9 @@ def summary_SEDs(nvar,
 
     plt.ylabel(r'Jy beam$^{-1}$')
     plt.xlabel(r'$\nu$ / GHz')
-    plt.xscale('log')
-    plt.yscale('log')
+    
+    plt.xscale(xscale)
+    plt.yscale(yscale)
     plt.legend()
     plt.grid()
     fileout = workdir + filename
@@ -428,6 +434,8 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
                      mcmc_bestparams=None,
                      mcmc_results_0=None,
                      chains=None,
+                     xscale=OptimM.summarySED_axisscale,
+                     yscale=OptimM.summarySED_axisscale,
                      nchains_4plots=False,
                      filename='fig_bestfit_Powell.png',
                      DoubleArrow=False)
@@ -578,7 +586,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        awalkerinit = sample_params + (1e-1 * np.random.randn(ndim) *
+        awalkerinit = sample_params + (OptimM.mcmcinitball_relrange * np.random.randn(ndim) *
                                        allowed_ranges)
         #awalkerinit = sample_params + (np.random.randn(ndim) * allowed_ranges)
 
@@ -800,6 +808,9 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                      mcmc_bestparams=bestparams,
                      mcmc_results_0=mcmc_results_0,
                      chains=chains,
+                     xscale=OptimM.summarySED_axisscale,
+                     yscale=OptimM.summarySED_axisscale,
+                     WithSEDchains=OptimM.summaryWithSEDchains,
                      nchains_4plots=nchains_4plots,
                      DoubleArrow=False)
 
@@ -965,6 +976,7 @@ class OptimM():
             MCMC_Nit=100,  #MCMC iterations
             nwalkers_pervar=10,
             burn_in=50,
+            mcmcinitball_relrange=0.1,
             n_cores_MCMC=4,
             CornerPlots=True,  # TriangleFile='cornerplot.png',
             ChainPlots=True,
@@ -977,8 +989,10 @@ class OptimM():
             Inherit_Init=False,  # loads init conditions from ASED 
             MCMCProgress=True,
             PhysicalInit=False,  # use physically motivated initial conditions
+            summarySED_axisscale='log',
+            summaryWithSEDchains=True,
             ######################################################################
-        mcmc_results=[],
+            mcmc_results=[],
             mcmc_bestparams=[]):
 
         initlocals = locals()

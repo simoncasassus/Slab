@@ -131,6 +131,8 @@ def f_kappa_abs(nf, kf, a, lam, rho, f):
         Qabs2 = 8. * kef * x * (nef**3. - (nef**2 - 1.)**1.5) / (3. * nef)
         Qabs3 = 1. - 0.1 * f
         Qabs = min(Qabs2, Qabs3)
+        #Qabs = 1./(1./Qabs2 + 1./Qabs3)
+        
     #print x, lam
     kappa0 = 3. / (4. * a * rho)
     return kappa0 * Qabs
@@ -160,6 +162,7 @@ def f_kappa_abs_numba(nf, kf, a, lam, rho, f):
         Qabs2 = 8. * kef * x * (nef**3. - (nef**2 - 1.)**1.5) / (3. * nef)
         Qabs3 = 1. - 0.1 * f
         Qabs = min(Qabs2, Qabs3)
+        #Qabs = 1./(1./Qabs2 + 1./Qabs3)
 
     kappa0 = 3. / (4. * a * rho)
     return kappa0 * Qabs
@@ -186,6 +189,7 @@ def f_kappa_scat_numba(nf, kf, a, lam, rho, f):
         Qscat2 = Qscat1 / (x**2.)
         Qscat3 = 1. + 0.1 * f
         Qscat = min(Qscat2, Qscat3)
+        #Qscat = 1./(1./Qscat2 + 1./Qscat3)
     #print x, lam
     kappa0 = 3. / (4. * a * rho)
     return kappa0 * Qscat
@@ -290,6 +294,7 @@ def f_kappa_scat(nf, kf, a, lam, rho, f):
         Qscat2 = Qscat1 / (x**2.)
         Qscat3 = 1. + 0.1 * f
         Qscat = min(Qscat2, Qscat3)
+        #Qscat = 1./(1./Qscat2 + 1./Qscat3)
     #print x, lam
     kappa0 = 3. / (4. * a * rho)
     return kappa0 * Qscat
@@ -347,7 +352,7 @@ class Setup():
             GenFigs=False,
             opct_file='opct_mix.txt',
             VerboseInit=False,
-            use_dsharp_opac=True,  # if false uses Kataoka+ 2014
+            use_dsharp_opac=True,  # if true, computes dsharp grid, if false, and GoInterp is also false,  uses Kataoka+ 2014
             outputdir='./output_dev/',
             griddir='./opac_grids/',
             ######################################################################
@@ -452,6 +457,8 @@ class MSED(Setup):
                 filetag = self.gridfiletag
                 if os.path.exists(self.griddir + 'kappa_abs_grid' + filetag +
                                   '.fits'):
+                    if self.Verbose:
+                        print("loading gridded kappas "+filetag+" from directory ",  self.griddir)
                     #print("filetag", filetag)
                     self.kappa_abs_hdulgrid = fits.open(self.griddir +
                                                         'kappa_abs_grid' +
@@ -753,7 +760,7 @@ class MSED(Setup):
     def get_taus_and_kappas_dsharp(self):
 
         if self.Verbose:
-            print("computing kappas usind dsharp_opac")
+            print("computing kappas using dsharp_opac")
         d = np.load(opacity.get_datafile('default_opacities_smooth.npz'))
         #d = np.load(opacity.get_datafile('default_opacities.npz'))
         a = d['a']
@@ -846,17 +853,17 @@ class MSED(Setup):
         if self.ExecTimeReport:
             time_0 = time()
             print("time for prep::", time_0 - time_00, " s")
-        if self.use_dsharp_opac:
+        if self.GoInterp:
+            self.get_taus_and_kappas_interp()
+            if self.ExecTimeReport:
+                time_3 = time()
+                print("time for get_taus_and_kappas :", time_3 - time_0, " s")
+        elif self.use_dsharp_opac:
             self.get_taus_and_kappas_dsharp()
             if self.ExecTimeReport:
                 time_3 = time()
                 print("time for get_taus_and_kappas_dsharp :", time_3 - time_0,
                       " s")
-        elif self.GoInterp:
-            self.get_taus_and_kappas_interp()
-            if self.ExecTimeReport:
-                time_3 = time()
-                print("time for get_taus_and_kappas :", time_3 - time_0, " s")
         else:
             self.get_Sigma_as()
             if self.ExecTimeReport:
