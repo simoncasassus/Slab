@@ -62,6 +62,7 @@ def addimage(iplotpos,
              SymmetricRange=False,
              MedianvalRange=False,
              DoCB=True,
+             DoAxesLabels=True,
              cmap='RdBu_r',
              MedRms=True,
              Zoom=False,
@@ -75,10 +76,11 @@ def addimage(iplotpos,
     ax = plt.subplot(nplotsy, nplotsx, iplotpos)
     # ax=axes[iplotpos]
 
-    if ((iplotpos % nplotsx) == 1):
-        ax.set_ylabel(r'$\delta$  offset / arcsec')
-    if (iplotpos > (nplotsx * (nplotsy - 1))):
-        ax.set_xlabel(r'$\alpha$ offset / arcsec')
+    if DoAxesLabels:
+        if ((iplotpos % nplotsx) == 1):
+            ax.set_ylabel(r'$\delta$  offset / arcsec')
+        if (iplotpos > (nplotsx * (nplotsy - 1))):
+            ax.set_xlabel(r'$\alpha$ offset / arcsec')
 
 
     plt.setp(ax.get_xticklabels(), visible=VisibleXaxis)
@@ -207,7 +209,7 @@ def addimage(iplotpos,
              lw=0.05)
 
     ax.text(a0 * 0.9,
-            d1 * 0.9,
+            d1 * 0.8,
             atitle,
             fontsize=12,
             ha='left',
@@ -279,6 +281,10 @@ def exec_summary(workdir,
                  Zoom=False,
                  WithModels=False,
                  ilabelstart=0,
+                 nplotsy = 2,
+                 DoCB=True,
+                 DoAxesLabels=True,
+                 WithAxes=False,
                  side=1.2):
 
     print("workdir:", workdir)
@@ -294,13 +300,16 @@ def exec_summary(workdir,
     # cmaps = ['magma', 'inferno', 'plasma', 'viridis', 'bone', 'afmhot', 'gist_heat', 'CMRmap', 'gnuplot', 'Blues_r', 'Purples_r', 'ocean', 'hot', 'seismic_r']
     gamma = 1.0
 
-    nplotsx = len(files_images)
-    nplotsy = 1
+    
     if WithModels:
         nplotsy = 2
+        nplotsx = int(len(files_images))
+    else:
+        nplotsx = int(len(files_images)/nplotsy)
+    
 
-    subfigsize = 4.7
-    figsize = (18., subfigsize * nplotsy)
+    subfigsize = 3.5
+    figsize = (subfigsize*nplotsx ,subfigsize * nplotsy)
 
     # (fig0, axes) = plt.subplots(nrows=nplotsy,ncols=nplotsx,figsize=figsize)
 
@@ -312,6 +321,8 @@ def exec_summary(workdir,
     labels = [
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'
     ]
+    VisibleXaxis=False
+    VisibleYaxis=False
 
     for ifile, afile in enumerate(files_images):
         atitle = titles[ifile]
@@ -327,13 +338,13 @@ def exec_summary(workdir,
             cbunits = 'mJy/beam'
             Range=False
             scaleunits=1E3
-            
-        VisibleXaxis=True
-        if WithModels:
-            VisibleXaxis=False
-        VisibleYaxis=False
-        if iplotpos == 1:
-            VisibleYaxis=True
+
+        if WithAxes:
+            VisibleXaxis=True
+            if WithModels:
+                VisibleXaxis=False
+            if iplotpos == 1:
+                VisibleYaxis=True
         (clevs, clabels) = addimage(iplotpos,
                                     label,
                                     atitle,
@@ -346,7 +357,8 @@ def exec_summary(workdir,
                                     nplotsx=nplotsx,
                                     nplotsy=nplotsy,
                                     SymmetricRange=False,
-                                    DoCB=True,
+                                    DoCB=DoCB,
+                                    DoAxesLabels=DoAxesLabels,
                                     cmap=cmap,
                                     Range=Range,
                                     Zoom=Zoom,
@@ -376,7 +388,8 @@ def exec_summary(workdir,
                                         nplotsx=nplotsx,
                                         nplotsy=nplotsy,
                                         SymmetricRange=False,
-                                        DoCB=True,
+                                        DoCB=DoCB,
+                                        DoAxesLabels=DoAxesLabels,
                                         cmap=cmap,
                                         Zoom=Zoom,
                                         Range=clevs,
@@ -388,11 +401,15 @@ def exec_summary(workdir,
 
     plt.subplots_adjust(hspace=0.1)
     plt.subplots_adjust(wspace=0.1)
+    
+    plt.subplots_adjust(hspace=0.)
+    plt.subplots_adjust(wspace=0.)
 
     print(fileout)
     #plt.tight_layout()
 
-    plt.savefig(fileout, bbox_inches='tight', dpi=500)
+    #plt.savefig(fileout, bbox_inches='tight', dpi=500)
+    plt.savefig(fileout, bbox_inches='tight')
 
     #plt.savefig(fileout)
 

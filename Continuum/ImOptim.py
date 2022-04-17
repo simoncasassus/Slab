@@ -49,8 +49,8 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
     hdr['CDELT2'] *= zoomfactor
     hdr['NAXIS1'] /= zoomfactor
     hdr['NAXIS2'] /= zoomfactor
-    nx /= zoomfactor
-    ny /= zoomfactor
+    nx = hdr['NAXIS1']
+    ny = hdr['NAXIS2']
     i0 = int((nx - 1) / 2)
     j0 = int((ny - 1) / 2)
 
@@ -253,7 +253,7 @@ def exec_imoptim(
     sigma_intraband_specindex = np.log(1. + intraband_accuracy) / np.log(
         obsnu2s / obsnu1s)
     shift_intraband_specindex = np.random.normal(0., sigma_intraband_specindex,
-                                                 len(obsnu2s))
+                                                 len(obsnu1s))
     print("SHIFTING intrabandspecindex by : ", shift_intraband_specindex)
 
     for ix in range(nx):
@@ -264,6 +264,8 @@ def exec_imoptim(
                 print("ix ", ix, " iy ", iy)
                 print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy], "radius",
                       rrs[ix, iy])
+                print("1off alpha  :", xxs[ix, iy], "delta:", yys[ix, iy], "radius",
+                      rrs[ix+1, iy])
             Inus = []
             specindexes = []
             recordfreqs = []

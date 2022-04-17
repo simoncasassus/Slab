@@ -55,12 +55,12 @@ def addprofile(axprofile,
         y_max = np.max(I_prof[plotmask])
 
     if ExtendRange:
-        print("extending range from ", y_min, y_max) 
+        print("extending range from ", y_min, y_max)
         if (y_min0):
             y_min = min(y_min0, y_min)
         if (y_max0):
             y_max = max(y_max0, y_max)
-        print("to  ", y_min, y_max) 
+        print("to  ", y_min, y_max)
     else:
         y_min = y_min0
         y_max = y_max0
@@ -160,16 +160,30 @@ def proc_1param(
         a_max=None,
         y_min0=None,
         y_max0=None,
+        #radius_4trueparams=0.56, # arcsec peak amax
+        radius_4trueparams=0.48, # arcsec small amax 
         drawlegend=True,
         label='a'):
 
     if file_input_profile:
-        (rs, aprof) = np.loadtxt(file_input_profile, unpack=True)
+        if '.fits' in file_input_profile:
+            rs, aprof, saprof, disaprof = getprofile(
+                os.path.dirname(file_input_profile)+'/',
+                os.path.basename(file_input_profile),
+                set_xrange=False)
+        else:
+            (rs, aprof) = np.loadtxt(file_input_profile, unpack=True)
 
         if takelog:
             aprof = np.log10(aprof)
 
+        iradius_4trueparams= np.argmin(np.fabs(rs - radius_4trueparams))
+        print("true "+file_input_profile, aprof[iradius_4trueparams])
+            
     if a_min is None:
+
+        print("setting xrange from ", outputdir+modelimage)
+        
         mrs, maprof, smaprof, dispmaprof, r1, r2 = getprofile(outputdir,
                                                               modelimage,
                                                               set_xrange=True)
@@ -226,31 +240,47 @@ def proc_1param(
     return a_min, a_max, y_min0, y_max0
 
 
-def exec_summary(datadir, outputdir='', dofs=3):
+def exec_summary(datadir, outputdir='', UseInputDustImages=False, WithDustExpo=False, dofs=3):
 
-    nplotsx = 5
+    if WithDustExpo:
+        nplotsx = 5
+    else:
+        nplotsx = 4
     nplotsy = 1
-    figxsize = 19.
+    figxsize = nplotsx*4
     figysize = 4.
 
     fig = plt.figure(constrained_layout=False, figsize=(figxsize, figysize))
     gs = fig.add_gridspec(
         nplotsy, nplotsx)  #, width_ratios=[2., 1., 1.], height_ratios=[1
 
-    axprofile_Tdust = fig.add_subplot(gs[0, 0])
+    iplotpos=0
+    axprofile_Tdust = fig.add_subplot(gs[0, iplotpos])
+    
+    if UseInputDustImages:
+        file_input_profile=datadir + 'Tdust.fits'
+    else:
+        file_input_profile=datadir + 'Tdust_profile.dat'
+        
     (a_min, a_max, y_min0,
      y_max0) = proc_1param(axprofile_Tdust,
-                           file_input_profile=datadir + 'Tdust_profile.dat',
+                           file_input_profile=file_input_profile,
                            takelog=True,
                            axislabel='',
                            linelabel=r'$\log_{10}(T_{\rm d} \,/ \,\rm{K})$',
                            outputdir=outputdir,
                            modelimage='imlogTdust.fits',
                            label='a')
+    
+    if UseInputDustImages:
+        file_input_profile=datadir + 'Sigma_g.fits'
+    else:
+        file_input_profile=datadir + 'Sigma_g_profile.dat'
 
-    axprofile_Sigma_g = fig.add_subplot(gs[0, 1])
+    iplotpos+=1
+    axprofile_Sigma_g = fig.add_subplot(gs[0, iplotpos])
     proc_1param(axprofile_Sigma_g,
-                file_input_profile=datadir + 'Sigma_g_profile.dat',
+                file_input_profile=file_input_profile,
                 takelog=True,
                 axislabel='',
                 linelabel=r'$\log_{10}(\Sigma_{\rm g} \,/ \,\rm{g\,cm}^{-2})$',
@@ -260,21 +290,34 @@ def exec_summary(datadir, outputdir='', dofs=3):
                 modelimage='imlogSigma_g.fits',
                 label='b')
 
-    axprofile_q_dustexpo = fig.add_subplot(gs[0, 2])
-    proc_1param(axprofile_q_dustexpo,
-                file_input_profile=datadir + 'qdustexpo_profile.dat',
-                takelog=False,
-                axislabel='',
-                linelabel=r'$q$',
-                outputdir=outputdir,
-                a_min=a_min,
-                a_max=a_max,
-                modelimage='imq_dustexpo.fits',
-                label='c')
+    if WithDustExpo:
+        if UseInputDustImages:
+            file_input_profile=datadir + 'qdustexpo.fits'
+        else:
+            file_input_profile=datadir + 'qdustexpo_profile.dat'
+        
+        iplotpos+=1
+        axprofile_q_dustexpo = fig.add_subplot(gs[0, iplotpos])
+        proc_1param(axprofile_q_dustexpo,
+                    file_input_profile=file_input_profile,
+                    takelog=False,
+                    axislabel='',
+                    linelabel=r'$q$',
+                    outputdir=outputdir,
+                    a_min=a_min,
+                    a_max=a_max,
+                    modelimage='imq_dustexpo.fits',
+                    label='c')
 
-    axprofile_logamax = fig.add_subplot(gs[0, 3])
+    if UseInputDustImages:
+        file_input_profile=datadir + 'amax.fits'
+    else:
+        file_input_profile=datadir + 'amax_profile.dat'
+
+    iplotpos+=1
+    axprofile_logamax = fig.add_subplot(gs[0, iplotpos])
     proc_1param(axprofile_logamax,
-                file_input_profile=datadir + 'amax_profile.dat',
+                file_input_profile=file_input_profile,
                 takelog=True,
                 axislabel='',
                 linelabel=r'$\log_{10}(a_{\rm max} \,/ \,\rm{cm})$',
@@ -282,19 +325,20 @@ def exec_summary(datadir, outputdir='', dofs=3):
                 a_min=a_min,
                 a_max=a_max,
                 modelimage='imlogamax.fits',
-                label='d')
+                label='c')
 
-    axprofile_chi2 = fig.add_subplot(gs[0, 4])
+    iplotpos+=1
+    axprofile_chi2 = fig.add_subplot(gs[0, iplotpos])
     proc_1param(axprofile_chi2,
                 file_input_profile=False,
                 takelog=True,
                 axislabel='',
-                linelabel=r'$\chi^2$,  ' + str(dofs)+'dofs',
+                linelabel=r'$\chi^2$,  ' + str(dofs) + 'dofs',
                 outputdir=outputdir,
                 a_min=a_min,
                 a_max=a_max,
                 modelimage='chi2map.fits',
-                label='e')
+                label='d')
 
     fileout_fig = outputdir + 'fig_profiles.pdf'
     plt.subplots_adjust(hspace=0.1)
@@ -328,13 +372,13 @@ def exec_stack(datadir, outputdirs=[], dofs=3, ploterrors=True):
     amax_max0 = None
     chi2_min0 = None
     chi2_max0 = None
-    
+
     axprofile_Sigma_g = fig.add_subplot(gs[0, 1])
     axprofile_q_dustexpo = fig.add_subplot(gs[0, 2])
     axprofile_logamax = fig.add_subplot(gs[0, 3])
     axprofile_chi2 = fig.add_subplot(gs[0, 4])
 
-    drawlegend=True
+    drawlegend = True
     for aoutputdir in outputdirs:
 
         (a_min, a_max, T_min0, T_max0) = proc_1param(
@@ -401,21 +445,22 @@ def exec_stack(datadir, outputdirs=[], dofs=3, ploterrors=True):
             modelimage='imlogamax.fits',
             label='')
 
-        (a_min, a_max, chi2_min0, chi2_max0) = proc_1param(axprofile_chi2,
-                    file_input_profile=False,
-                    takelog=True,
-                    axislabel='',
-                    linelabel=r'$\chi^2$, expect ' + str(dofs),
-                    outputdir=aoutputdir,
-                    ploterrors=ploterrors,
-                    a_min=a_min,
-                    a_max=a_max,
-                    y_min0=chi2_min0,
-                    y_max0=chi2_max0,
-                    drawlegend=drawlegend,
-                    modelimage='chi2map.fits',
-                    label='')
-        drawlegend=False
+        (a_min, a_max, chi2_min0,
+         chi2_max0) = proc_1param(axprofile_chi2,
+                                  file_input_profile=False,
+                                  takelog=True,
+                                  axislabel='',
+                                  linelabel=r'$\chi^2$, expect ' + str(dofs),
+                                  outputdir=aoutputdir,
+                                  ploterrors=ploterrors,
+                                  a_min=a_min,
+                                  a_max=a_max,
+                                  y_min0=chi2_min0,
+                                  y_max0=chi2_max0,
+                                  drawlegend=drawlegend,
+                                  modelimage='chi2map.fits',
+                                  label='')
+        drawlegend = False
 
     fileout_fig = outputdirs[0] + 'fig_profiles_stacked.pdf'
     plt.subplots_adjust(hspace=0.1)
