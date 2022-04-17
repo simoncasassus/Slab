@@ -55,15 +55,14 @@ def summary_SEDs(nvar,
                  filename='fig_bestfit.png',
                  DoubleArrow=True):
 
-    ZSetup4plots=deepcopy(ZSetup)
-    ASED4plots=deepcopy(ASED)
-    
+    ZSetup4plots = deepcopy(ZSetup)
+    ASED4plots = deepcopy(ASED)
+
     workdir = ZSetup4plots.outputdir
     Ztitle_maxL = ''
     Ztitle_CG = 'Powell '
     Ztitle_mcmc = ''
 
-            
     for iparam in range(nvar):
         name = names[iparam]
         dolog = False
@@ -72,33 +71,45 @@ def summary_SEDs(nvar,
             dolog = True
             name = m.group(1)
 
+        UseCGBestFit = False
         if CGbestparams is not None:
             maxLvalueCG = CGbestparams[iparam]
+            UseCGBestFit = True
+            print("USING POWELL FOR MAX LIKELIHOOD VALUES")
+            
             #if dolog:
             #    maxLvalueCG = 10**(maxLvalueCG)
             Ztitle_CG = Ztitle_CG + name + r'= %.2f ' % (maxLvalueCG)
 
-            
         if mcmc_results is not None:
 
-            
             parmcmc_results = mcmc_results[iparam]
             #parmcmc_results = mcmc_results_frombestparams[iparam]
 
-            maxLvalue = mcmc_bestparams[iparam]
+            if UseCGBestFit:
+                maxLvalue = maxLvalueCG
+            else:
+                maxLvalue = mcmc_bestparams[iparam]
+                
             value = parmcmc_results[0]
+            reportvalue = maxLvalue
             
-            adjust_medianvalrange=True
+            adjust_medianvalrange = True
             if adjust_medianvalrange:
-                upperval = mcmc_results[iparam][0]+mcmc_results[iparam][1]
-                uperror = upperval - maxLvalue 
-                lowerval = mcmc_results[iparam][0]-mcmc_results[iparam][2]
+                upperval = mcmc_results[iparam][0] + mcmc_results[iparam][1]
+                uperror = upperval - maxLvalue
+                lowerval = mcmc_results[iparam][0] - mcmc_results[iparam][2]
                 downerror = maxLvalue - lowerval
-
             else:
                 uperror = parmcmc_results[1]
                 downerror = parmcmc_results[2]
-            
+
+            if (uperror < 0.) | (downerror < 0.) :
+                reportvalue = parmcmc_results[0]
+                uperror = parmcmc_results[1]
+                downerror = parmcmc_results[2]
+                
+
             #if dolog:
             #    uperror = 10**(value + uperror) - 10**(value)
             #    downerror = 10**(value) - 10**(value - downerror)
@@ -107,7 +118,7 @@ def summary_SEDs(nvar,
             Ztitle_maxL = Ztitle_maxL + name + r'= %.2f ' % (maxLvalue)
             #Ztitle_mcmc = Ztitle_mcmc + name + r'= %.2f$^{+%.2f}_{-%.2f}$ ' % (
             #    value, uperror, downerror)
-            latexname=name
+            latexname = name
             if name == 'Tdust':
                 latexname = r'$\log\left(\frac{T_{\rm d}}{{\rm K}}\right)$'
                 latexname = r'$\log\left(T_{\rm d}/{\rm K}\right)$'
@@ -119,14 +130,18 @@ def summary_SEDs(nvar,
             if name == 'amax':
                 latexname = r'$\log\left(\frac{a_{\rm max}}{{\rm cm}}\right)$'
                 latexname = r'$\log\left(a_{\rm max}/{\rm cm}\right)$'
+
             Ztitle_mcmc = Ztitle_mcmc + latexname + r'= %.2f$^{+%.2f}_{-%.2f}$  ' % (
-                maxLvalue, uperror, downerror)
-            
+                reportvalue, uperror, downerror)
+
             if name != 'Sigma_g':
                 Ztitle_mcmc += '\n'
 
-            
 
+        if UseCGBestFit:
+            Ztitle_CG = Ztitle_mcmc
+            
+                
     N_freqs = 100
     lognu1 = np.log10(90E9)
     lognu2 = np.log10(700E9)
@@ -142,8 +157,8 @@ def summary_SEDs(nvar,
 
     Inorm = (ASED4plots.nus / 100E9)**2
     #plt.figure(figsize=(10, 4))
-    ax=plt.figure(figsize=(6, 3))
-    plt.ticklabel_format(axis='both',style='plain')
+    ax = plt.figure(figsize=(6, 3))
+    plt.ticklabel_format(axis='both', style='plain')
 
     if chains is not None:
         nchains, nvars = chains.shape
@@ -159,7 +174,8 @@ def summary_SEDs(nvar,
             assignfreeparams(names, apars, ASED4plotsparams)
             ASED4plotsparams.calcul()
             plt.plot(ASED4plotsparams.nus / 1E9,
-                     scaleunits*ZData.omega_beam * ASED4plotsparams.Inus / Inorm,
+                     scaleunits * ZData.omega_beam * ASED4plotsparams.Inus /
+                     Inorm,
                      alpha=0.002,
                      lw=0.5,
                      zorder=-32,
@@ -170,53 +186,58 @@ def summary_SEDs(nvar,
         ASED4plots.calcul()
         plt.plot(
             ASED4plots.nus / 1E9,
-            scaleunits*ZData.omega_beam * ASED4plots.Inus / Inorm,
+            scaleunits * ZData.omega_beam * ASED4plots.Inus / Inorm,
             color='C3',
-            zorder=-5,
+            zorder=2,
             #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
             #'\n' + Ztitle_CG)
-            label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $' +  Ztitle_CG)
+            #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
+            #'\n' + Ztitle_mcmc)
+            #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ ' +'\n' +  Ztitle_mcmc)
+            label=Ztitle_CG)
 
-    if mcmc_results:
+    elif mcmc_results:
         assignfreeparams(names, mcmc_bestparams, ASED4plots)
         ASED4plots.calcul()
 
         plt.plot(
             ASED4plots.nus / 1E9,
-            scaleunits*ZData.omega_beam * ASED4plots.Inus / Inorm,
+            scaleunits * ZData.omega_beam * ASED4plots.Inus / Inorm,
             color='C0',
             zorder=2,
             #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ maximum likelihood' +
             #'\n' + Ztitle_mcmc)
-            label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ ' +'\n' +  Ztitle_mcmc)
+            #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ ' +'\n' +  Ztitle_mcmc)
+            label=Ztitle_mcmc)
 
-        PlotMedianValues=False
+        PlotMedianValues = False
         if PlotMedianValues:
             ASED4plotsmedian = AModelSED.MSED(ZSetup4plots)
             ASED4plotsmedian.copy(ASED4plots)
             assignfreeparams(names, mcmc_results_0, ASED4plotsmedian)
             ASED4plotsmedian.calcul()
 
-            plt.plot(ASED4plotsmedian.nus / 1E9,
-                     scaleunits*ZData.omega_beam * ASED4plotsmedian.Inus / Inorm,
-                     color='C2',
-                     zorder=-10,
-                     label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ median' + '\n' +
-                     Ztitle_mcmc)
+            plt.plot(
+                ASED4plotsmedian.nus / 1E9,
+                scaleunits * ZData.omega_beam * ASED4plotsmedian.Inus / Inorm,
+                color='C2',
+                zorder=-10,
+                label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ median' + '\n' +
+                Ztitle_mcmc)
 
             # ensure numpy arrays are reset to mcmc_bestparams
             assignfreeparams(names, mcmc_bestparams, ASED4plots)
             ASED4plots.calcul()
 
     if trueparams:
-        datalabel='' #'synthetic data for '+trueparams
+        datalabel = ''  #'synthetic data for '+trueparams
     else:
-        datalabel=''
-        
+        datalabel = ''
+
     Inorm_Data = (ZData.nus / 100E9)**2
     plt.errorbar(ZData.nus / 1E9,
-                 scaleunits*ZData.omega_beam * ZData.Inus / Inorm_Data,
-                 yerr=scaleunits*ZData.omega_beam * ZData.sInus / Inorm_Data,
+                 scaleunits * ZData.omega_beam * ZData.Inus / Inorm_Data,
+                 yerr=scaleunits * ZData.omega_beam * ZData.sInus / Inorm_Data,
                  color='C1',
                  zorder=1,
                  label=datalabel,
@@ -225,14 +246,14 @@ def summary_SEDs(nvar,
                  barsabove=True)
 
     plt.plot(ZData.nus / 1E9,
-             scaleunits*ZData.omega_beam * ZData.Inus / Inorm_Data,
+             scaleunits * ZData.omega_beam * ZData.Inus / Inorm_Data,
              color='C1',
              zorder=1,
              marker='x',
              linestyle='none')
 
     plt.title(trueparams)
-    
+
     if ZData.nus_alphas is not None:
         for ispecindex in range(len(ZData.alphas)):
             nu1 = ZData.nu1s_alphas[ispecindex]
@@ -251,32 +272,35 @@ def summary_SEDs(nvar,
             #print("Inu2", Inu2 * ZData.omega_beam, Inu1 * ZData.omega_beam)
             if PlotSpecIndexArrows:
                 plt.arrow(nu1 / 1E9,
-                          scaleunits*Inu1 * ZData.omega_beam,
+                          scaleunits * Inu1 * ZData.omega_beam,
                           dnu / 1E9,
-                          scaleunits*dInu * ZData.omega_beam,
-                          width=scaleunits*Inu1 * ZData.omega_beam * 0.01,
+                          scaleunits * dInu * ZData.omega_beam,
+                          width=scaleunits * Inu1 * ZData.omega_beam * 0.01,
                           head_length=dnu / (2E9),
                           color='C1')
                 if DoubleArrow:
                     dInu = (Inu3 - Inu1)
                     dnu = -0.1 * nu1
                     plt.arrow(nu1 / 1E9,
-                              scaleunits*Inu1 * ZData.omega_beam,
+                              scaleunits * Inu1 * ZData.omega_beam,
                               dnu / 1E9,
-                              scaleunits*dInu * ZData.omega_beam,
-                              width=scaleunits*Inu1 * ZData.omega_beam * 0.01,
+                              scaleunits * dInu * ZData.omega_beam,
+                              width=scaleunits * Inu1 * ZData.omega_beam *
+                              0.01,
                               head_length=-dnu / (2E9),
                               color='C1')
 
-    plt.ylabel(r'$\mu$Jy beam$^{-1}$')
-    plt.xlabel(r'$\nu$ / GHz')
+    plt.ylabel(
+        r'$I_\nu\, / \,\left(\frac{\nu}{\rm{100GHz}}\right)^2  ~~ / ~\mu$Jy beam$^{-1}$'
+    )
+    plt.xlabel(r'$\nu~~$ / GHz')
     plt.xscale(xscale)
     plt.yscale(yscale)
     plt.legend()
 
     #plt.ticklabel_format(style='plain', axis='both')
     import matplotlib.ticker as mticker
-    ax=plt.gca()
+    ax = plt.gca()
     ax.set_xscale(xscale)
     ax.set_yscale(yscale)
     ax.xaxis.set_major_formatter(mticker.ScalarFormatter())
@@ -285,7 +309,7 @@ def summary_SEDs(nvar,
     ax.yaxis.set_major_formatter(mticker.ScalarFormatter())
     #ax.yaxis.set_minor_formatter(mticker.ScalarFormatter())
     ax.ticklabel_format(style='plain', axis='y')
-    
+
     #plt.ticklabel_format(axis='both',style='plain')
     #plt.grid()
     fileout = workdir + filename
@@ -469,13 +493,15 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
         for j in range(nvar):
             lowerlimit = bnds[j][0]
             upperlimit = bnds[j][1]
-            bnds[j][0] = sample_params[j]-(sample_params[j] - lowerlimit) / 10.
-            bnds[j][1] = sample_params[j]+(upperlimit - sample_params[j]) / 10.
+            bnds[j][0] = sample_params[j] - (sample_params[j] -
+                                             lowerlimit) / 10.
+            bnds[j][1] = sample_params[j] + (upperlimit -
+                                             sample_params[j]) / 10.
             lowerlimit = bnds[j][0]
             upperlimit = bnds[j][1]
             if OptimM.Report:
                 print("inherit- narrow bounds:")
-                print(names[j],sample_params[j],lowerlimit,upperlimit)
+                print(names[j], sample_params[j], lowerlimit, upperlimit)
 
     if OptimM.Report:
         print("nvar = ", nvar)
@@ -491,22 +517,23 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
         np.save(ZSetup.outputdir + 'result_ml_errors.dat', errors_ml)
 
     if OptimM.SummaryPlots:
-        summary_SEDs(nvar,
-                     names,
-                     ASED,
-                     ZData,
-                     ZSetup,
-                     CGbestparams=result_ml,
-                     mcmc_results=None,
-                     mcmc_bestparams=None,
-                     mcmc_results_0=None,
-                     chains=None,
-                     trueparams=OptimM.trueparams,
-                     xscale=OptimM.summarySED_axisscale,
-                     yscale=OptimM.summarySED_axisscale,
-                     nchains_4plots=False,
-                     filename='fig_bestfit_Powell.png',
-                     DoubleArrow=False)
+        summary_SEDs(
+            nvar,
+            names,
+            ASED,
+            ZData,
+            ZSetup,
+            CGbestparams=result_ml,
+            mcmc_results=OptimM.mcmc_results,  # None,
+            mcmc_bestparams=OptimM.mcmc_bestparams,  #None
+            mcmc_results_0=OptimM.mcmc_results_0,
+            chains=None,
+            trueparams=OptimM.trueparams,
+            xscale=OptimM.summarySED_axisscale,
+            yscale=OptimM.summarySED_axisscale,
+            nchains_4plots=False,
+            filename='fig_bestfit_Powell.png',
+            DoubleArrow=False)
 
     achi2 = retvals[0]
     modelInus = retvals[1]
@@ -654,8 +681,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     for i in list(range(nwalkers)):
         if (np.any(allowed_ranges < 0.)):
             sys.exit("wrong order of bounds in domains")
-        awalkerinit = sample_params + (OptimM.mcmcinitball_relrange * np.random.randn(ndim) *
-                                       allowed_ranges)
+        awalkerinit = sample_params + (OptimM.mcmcinitball_relrange *
+                                       np.random.randn(ndim) * allowed_ranges)
         #awalkerinit = sample_params + (np.random.randn(ndim) * allowed_ranges)
 
         for j in list(range(ndim)):
@@ -813,9 +840,6 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
             zip(*np.percentile(chains, [16, 50, 84], axis=0))))
 
-
-
-
     # expectation values
     # ibestparams = np.argmax(lnpchain)
     # bestparams = chains[ibestparams, :]
@@ -830,6 +854,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         mcmc_results_0[iparam] = mcmc_results[iparam][0]
 
     OptimM.mcmc_results = mcmc_results
+    OptimM.mcmc_results_0 = mcmc_results_0
     OptimM.mcmc_bestparams = bestparams
 
     if OptimM.Report:
@@ -1055,7 +1080,7 @@ class OptimM():
             PrintChi2s=False,
             Report=True,
             SummaryPlots=True,
-            trueparams=False, # string 
+            trueparams=False,  # string 
             domain=[],
             domain_CG=[],
             domain_MCMC=[],
@@ -1066,6 +1091,7 @@ class OptimM():
             summaryWithSEDchains=False,
             ######################################################################
             mcmc_results=[],
+            mcmc_results_0=[],
             mcmc_bestparams=[]):
 
         initlocals = locals()

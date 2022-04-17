@@ -118,6 +118,9 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
         [names, result_ml, modelInus, modelalphas,
          Powellchi2] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
         if (Powellchi2 < achi2):
+            if ZSED.Verbose:
+                print("Powell improved!")
+
             bestparams = result_ml
             achi2 = Powellchi2
 

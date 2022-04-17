@@ -1,3 +1,6 @@
 inherit MCMC into Powell: why is init powell chi2 not the same as best mcmc chi2?
 
+REPORT 	EXPECTATION VALUES AND VARIANCES
+
+
 
