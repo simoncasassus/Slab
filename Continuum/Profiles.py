@@ -160,9 +160,10 @@ def proc_1param(
         a_max=None,
         y_min0=None,
         y_max0=None,
-        #radius_4trueparams=0.56, # Feng dust model, RING
         #radius_4trueparams=0.37, # LP dust model, RING
-        radius_4trueparams=0.275, # LP dust model, GAP
+        #radius_4trueparams=0.275, # LP dust model, GAP
+        #radius_4trueparams=0.5, # Feng dust model, GAP
+        radius_4trueparams=0.56, # Feng dust model, RING
         drawlegend=True,
         label='a'):
 
@@ -184,14 +185,18 @@ def proc_1param(
         print("true "+file_input_profile, aprof[iradius_4trueparams])
 
         if 'amax' in file_input_profile:
-            ringamax = np.max(aprof[(rs > 0.2)])
-            irad = np.argwhere((rs > 0.2) & (aprof == ringamax))
+            #ringamax = np.max(aprof[(rs > 0.2)])
+            #irad = np.argwhere((rs > 0.2) & (aprof == ringamax))
+            #print("RING irad ", irad, "rs[irad]",rs[irad])
+
+            ringamax = np.max(aprof[(rs > 0.4)])
+            irad = np.argwhere((rs > 0.4) & (aprof == ringamax))
             print("RING irad ", irad, "rs[irad]",rs[irad])
 
-        if 'amax' in file_input_profile:
-            gapamax = np.min(aprof[(rs > 0.2)& (rs < 0.4)])
-            irad = np.argwhere((rs > 0.2) & (aprof == gapamax) & (rs < 0.4))
-            print("gapamax", gapamax, "GAP irad ", irad, "rs[irad]",rs[irad])
+        #if 'amax' in file_input_profile:
+        #    gapamax = np.min(aprof[(rs > 0.2)& (rs < 0.4)])
+        #    irad = np.argwhere((rs > 0.2) & (aprof == gapamax) & (rs < 0.4))
+        #    print("gapamax", gapamax, "GAP irad ", irad, "rs[irad]",rs[irad])
 
 
     if a_min is None:

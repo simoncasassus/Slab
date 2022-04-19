@@ -6,6 +6,7 @@ import scipy
 import scipy.signal
 
 import matplotlib 
+from matplotlib.colors import LogNorm
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -182,6 +183,8 @@ def addimage(iplotpos,
         print("NaNs in subim_grey")
     subim_grey = np.nan_to_num(subim_grey)
 
+    #norm=LogNorm(vmin=range1, vmax=range2),
+
     theimage = ax.imshow(
         subim_grey,
         origin='lower',
@@ -192,21 +195,21 @@ def addimage(iplotpos,
         interpolation='nearest')  #'nearest'  'bicubic'
 
     #plt.plot(0.,0.,marker='*',color='yellow',markersize=0.2,markeredgecolor='black')
-    plt.plot(0.,
-             0.,
-             marker='+',
-             color='red',
-             markersize=2.,
-             alpha=0.6,
-             lw=0.05)
-
-    plt.plot(0.002,
-             0.017,
-             marker='+',
-             color='green',
-             markersize=2.,
-             alpha=0.6,
-             lw=0.05)
+    #plt.plot(0.,
+    #         0.,
+    #         marker='+',
+    #         color='red',
+    #         markersize=2.,
+    #         alpha=0.6,
+    #         lw=0.05)
+    #
+    #plt.plot(0.002,
+    #         0.017,
+    #         marker='+',
+    #         color='green',
+    #         markersize=2.,
+    #         alpha=0.6,
+    #         lw=0.05)
 
     ax.text(a0 * 0.9,
             d1 * 0.8,
@@ -318,6 +321,8 @@ def exec_summary(workdir,
     iplotpos = 0
 
     cmap = 'inferno'
+    cmap = 'hot'
+    #cmap = 'ocean_r'
     labels = [
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'
     ]
@@ -360,7 +365,7 @@ def exec_summary(workdir,
                                     DoCB=DoCB,
                                     DoAxesLabels=DoAxesLabels,
                                     cmap=cmap,
-                                    Range=Range,
+                                    #Range=Range,
                                     Zoom=Zoom,
                                     side=side,
                                     DoInterestingRegion=False,
@@ -392,7 +397,7 @@ def exec_summary(workdir,
                                         DoAxesLabels=DoAxesLabels,
                                         cmap=cmap,
                                         Zoom=Zoom,
-                                        Range=clevs,
+                                        #Range=clevs,
                                         side=side,
                                         DoInterestingRegion=False,
                                         scaleunits=scaleunits,

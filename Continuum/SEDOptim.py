@@ -157,7 +157,8 @@ def summary_SEDs(nvar,
 
     Inorm = (ASED4plots.nus / 100E9)**2
     #plt.figure(figsize=(10, 4))
-    ax = plt.figure(figsize=(6, 3))
+    #ax = plt.figure(figsize=(6, 3))
+    ax = plt.figure(figsize=(4, 2))
     plt.ticklabel_format(axis='both', style='plain')
 
     if chains is not None:
@@ -195,6 +196,8 @@ def summary_SEDs(nvar,
             #'\n' + Ztitle_mcmc)
             #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ ' +'\n' +  Ztitle_mcmc)
             label=Ztitle_CG)
+        
+        legendtext=Ztitle_CG
 
     elif mcmc_results:
         assignfreeparams(names, mcmc_bestparams, ASED4plots)
@@ -210,6 +213,8 @@ def summary_SEDs(nvar,
             #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ ' +'\n' +  Ztitle_mcmc)
             label=Ztitle_mcmc)
 
+        legendtext=Ztitle_mcmc
+        
         PlotMedianValues = False
         if PlotMedianValues:
             ASED4plotsmedian = AModelSED.MSED(ZSetup4plots)
@@ -294,15 +299,18 @@ def summary_SEDs(nvar,
         r'$I_\nu\, / \,\left(\frac{\nu}{\rm{100GHz}}\right)^2  ~~ / ~\mu$Jy beam$^{-1}$'
     )
     plt.xlabel(r'$\nu~~$ / GHz')
+    print("xscale",xscale)
+    print("yscale",yscale)
     plt.xscale(xscale)
     plt.yscale(yscale)
-    plt.legend()
+    plt.legend(handlelength=0.)
 
     #plt.ticklabel_format(style='plain', axis='both')
     import matplotlib.ticker as mticker
     ax = plt.gca()
     ax.set_xscale(xscale)
     ax.set_yscale(yscale)
+    ax.tick_params(which='both',axis='x', labelsize=8)
     ax.xaxis.set_major_formatter(mticker.ScalarFormatter())
     ax.xaxis.set_minor_formatter(mticker.ScalarFormatter())
     ax.ticklabel_format(style='plain', axis='x')
@@ -314,7 +322,7 @@ def summary_SEDs(nvar,
     #plt.grid()
     fileout = workdir + filename
     print(fileout)
-    plt.savefig(fileout, bbox_inches='tight')
+    plt.savefig(fileout, bbox_inches='tight',dpi=500)
 
 
 def assignfreeparams(parnames, values, ASED):
@@ -529,8 +537,8 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
             mcmc_results_0=OptimM.mcmc_results_0,
             chains=None,
             trueparams=OptimM.trueparams,
-            xscale=OptimM.summarySED_axisscale,
-            yscale=OptimM.summarySED_axisscale,
+            xscale=OptimM.summarySED_xaxisscale,
+            yscale=OptimM.summarySED_yaxisscale,
             nchains_4plots=False,
             filename='fig_bestfit_Powell.png',
             DoubleArrow=False)
@@ -905,8 +913,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                      mcmc_results_0=mcmc_results_0,
                      chains=chains,
                      trueparams=OptimM.trueparams,
-                     xscale=OptimM.summarySED_axisscale,
-                     yscale=OptimM.summarySED_axisscale,
+                     xscale=OptimM.summarySED_xaxisscale,
+                     yscale=OptimM.summarySED_yaxisscale,
                      WithSEDchains=OptimM.summaryWithSEDchains,
                      nchains_4plots=nchains_4plots,
                      DoubleArrow=False)
@@ -1087,7 +1095,8 @@ class OptimM():
             Inherit_Init=False,  # loads init conditions from ASED 
             MCMCProgress=True,
             PhysicalInit=False,  # use physically motivated initial conditions
-            summarySED_axisscale='log',
+            summarySED_xaxisscale='log',
+            summarySED_yaxisscale='log',
             summaryWithSEDchains=False,
             ######################################################################
             mcmc_results=[],
