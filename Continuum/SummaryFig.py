@@ -248,10 +248,10 @@ def addimage(iplotpos,
                     width=bmin,
                     height=bmaj,
                     angle=-bpa,
-                    color='blue')
+                    color='white')
         e.set_clip_box(axcb.bbox)
-        e.set_facecolor('yellow')
-        e.set_alpha(0.5)
+        e.set_facecolor('white')
+        e.set_alpha(1.)
         axcb.add_artist(e)
 
     if DoInterestingRegion:
@@ -287,7 +287,7 @@ def exec_summary(workdir,
                  nplotsy = 2,
                  DoCB=True,
                  DoAxesLabels=True,
-                 WithAxes=False,
+                 WithAxes=True,
                  side=1.2):
 
     print("workdir:", workdir)
@@ -308,7 +308,8 @@ def exec_summary(workdir,
         nplotsy = 2
         nplotsx = int(len(files_images))
     else:
-        nplotsx = int(len(files_images)/nplotsy)
+        nplotsy = 1 
+        nplotsx = len(files_images)
     
 
     subfigsize = 3.5
