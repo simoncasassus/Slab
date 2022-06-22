@@ -285,6 +285,7 @@ def exec_summary(workdir,
                  WithModels=False,
                  ilabelstart=0,
                  nplotsy = 2,
+                 IsSpecIndex=False,
                  DoCB=True,
                  DoAxesLabels=True,
                  WithAxes=True,
@@ -330,6 +331,9 @@ def exec_summary(workdir,
     VisibleXaxis=False
     VisibleYaxis=False
 
+    Range=False
+    if IsSpecIndex:
+        Range=[1.,5.]
     for ifile, afile in enumerate(files_images):
         atitle = titles[ifile]
         label = labels[ifile + ilabelstart]
@@ -366,13 +370,13 @@ def exec_summary(workdir,
                                     DoCB=DoCB,
                                     DoAxesLabels=DoAxesLabels,
                                     cmap=cmap,
-                                    #Range=Range,
+                                    Range=Range,
                                     Zoom=Zoom,
                                     side=side,
                                     DoInterestingRegion=False,
                                     cbunits=cbunits,
                                     scaleunits=scaleunits,
-                                    cbfmt='%.1f')
+                                    cbfmt='%.2f')
 
         if WithModels:
             outputdir = WithModels
@@ -392,6 +396,7 @@ def exec_summary(workdir,
                                         DoBeamEllipse=True,
                                         DoGreyCont=False,
                                         nplotsx=nplotsx,
+                                        Range=Range,
                                         nplotsy=nplotsy,
                                         SymmetricRange=False,
                                         DoCB=DoCB,
@@ -403,7 +408,7 @@ def exec_summary(workdir,
                                         DoInterestingRegion=False,
                                         scaleunits=scaleunits,
                                         cbunits=cbunits,
-                                        cbfmt='%.1f')
+                                        cbfmt='%.2f')
 
     plt.subplots_adjust(hspace=0.1)
     plt.subplots_adjust(wspace=0.1)
