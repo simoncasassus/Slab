@@ -18,7 +18,7 @@ from multiprocessing import Pool
 
 from astropy import constants as const
 
-C_MKS = const.c.value  # m/s
+c_MKS = const.c.value  # m/s
 k_B = const.k_B.value
 
 HOME = os.environ.get('HOME')
