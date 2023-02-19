@@ -131,8 +131,8 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
 
 
 def loaddata(files_images,
-             files_specindex,
-             files_errspecindex,
+             files_specindex=None,
+             files_errspecindex=None,
              zoomfactor=8,
              outputdir=''):
 
@@ -157,20 +157,23 @@ def loaddata(files_images,
     hdu_canvas.writeto(outputdir + 'canvas.fits', overwrite=True)
     # Vtools.View(hdu_canvas)
 
-    mfreq_specindexhdus = []
-    for afile in files_specindex:
-        rrs2, hdu, pixscale, omega_beam_b = load_imagfile(
-            afile, zoomfactor=zoomfactor, outputdir=outputdir)
-        mfreq_specindexhdus.append(hdu)
+    if files_specindex is not None:
+        mfreq_specindexhdus = []
+        for afile in files_specindex:
+            rrs2, hdu, pixscale, omega_beam_b = load_imagfile(
+                afile, zoomfactor=zoomfactor, outputdir=outputdir)
+            mfreq_specindexhdus.append(hdu)
 
-    mfreq_errspecindexhdus = []
-    for afile in files_errspecindex:
-        rrs2, hdu, pixscale, omega_beam_b = load_imagfile(
-            afile, zoomfactor=zoomfactor, outputdir=outputdir)
-        mfreq_errspecindexhdus.append(hdu)
+        mfreq_errspecindexhdus = []
+        for afile in files_errspecindex:
+            rrs2, hdu, pixscale, omega_beam_b = load_imagfile(
+                afile, zoomfactor=zoomfactor, outputdir=outputdir)
+            mfreq_errspecindexhdus.append(hdu)
 
-    print(len(mfreq_specindexhdus))
-    return hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams
+        print(len(mfreq_specindexhdus))
+        return hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams
+    else:
+        return hdu_canvas, mfreq_imhdus, omega_beams
 
 
 def exec_imoptim(
@@ -181,12 +184,12 @@ def exec_imoptim(
         ZMerit,
         hdu_canvas,
         mfreq_imhdus,
-        mfreq_specindexhdus,
-        mfreq_errspecindexhdus,
+        mfreq_specindexhdus=None,
+        mfreq_errspecindexhdus=None,
         n_cores_map=4,
         intensity_threshold=[0, 5],  # ifreq, nthres
         files_images=None,
-        files_specindex=None,
+        files_specindex=None,  # only required for naming
         omega_beams=[],
         fluxcal_accuracy=[],
         shift_fluxcal=None,
@@ -196,13 +199,10 @@ def exec_imoptim(
     if SingleLOS is None:
         ZSetup.Verbose = False
         ZSED.Verbose = False
-        
+
     nfreqs = len(mfreq_imhdus)
-    nspecindexs = len(mfreq_specindexhdus)
     im_canvas = hdu_canvas[0].data
     outputdir = ZSetup.outputdir
-    obsnu2s = ZData.nu2s_alphas
-    obsnu1s = ZData.nu1s_alphas
     rmsnoises = ZData.rmsnoises
 
     #rmsnoises_nu1s = ZData.rmsnoises_nu1s
@@ -226,10 +226,15 @@ def exec_imoptim(
     for ifreq in range(nfreqs):
         amodelimage = np.zeros(im_canvas.shape)
         modelimages.append(amodelimage)
-    modelspecindexs = []
-    for ispecindex in range(nspecindexs):
-        amodelspecindex = np.zeros(im_canvas.shape)
-        modelspecindexs.append(amodelspecindex)
+
+    if ZMerit.with_specindexdata:
+        nspecindexs = len(mfreq_specindexhdus)
+        obsnu2s = ZData.nu2s_alphas
+        obsnu1s = ZData.nu1s_alphas
+        modelspecindexs = []
+        for ispecindex in range(nspecindexs):
+            amodelspecindex = np.zeros(im_canvas.shape)
+            modelspecindexs.append(amodelspecindex)
 
     tasks = []
     nx, ny = im_canvas.shape
@@ -253,22 +258,26 @@ def exec_imoptim(
         print("SHIFTING FLUX CALS BY: ", fluxcal_factors)
         np.savetxt(outputdir + 'fluxcal_factors.txt', fluxcal_factors)
 
-    sigma_intraband_specindex = np.log(1. + intraband_accuracy) / np.log(
-        obsnu2s / obsnu1s)
-    shift_intraband_specindex = np.random.normal(0., sigma_intraband_specindex,
-                                                 len(obsnu1s))
-    print("SHIFTING intrabandspecindex by : ", shift_intraband_specindex)
+        if ZMerit.with_specindexdata:
+            sigma_intraband_specindex = np.log(1. +
+                                               intraband_accuracy) / np.log(
+                                                   obsnu2s / obsnu1s)
+            shift_intraband_specindex = np.random.normal(
+                0., sigma_intraband_specindex, len(obsnu1s))
+            print("SHIFTING intrabandspecindex by : ",
+                  shift_intraband_specindex)
 
     for ix in range(nx):
         for iy in range(ny):
+            
             if SingleLOS is not None:
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
                 print("ix ", ix, " iy ", iy)
                 print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy], "radius",
                       rrs[ix, iy])
-                print("1off alpha  :", xxs[ix, iy], "delta:", yys[ix, iy], "radius",
-                      rrs[ix+1, iy])
+                print("1off alpha  :", xxs[ix, iy], "delta:", yys[ix, iy],
+                      "radius", rrs[ix + 1, iy])
             Inus = []
             specindexes = []
             recordfreqs = []
@@ -295,30 +304,33 @@ def exec_imoptim(
             if shift_fluxcal is not None:
                 Inus *= fluxcal_factors
 
-            errspecindexes = []
-            Inu1s = []
-            nu1s = []
-            nu2s = []
-            for ispecindex in range(nspecindexs):
-                aspecindexmap = mfreq_specindexhdus[ispecindex][0].data
-                aspecindexhdr = mfreq_specindexhdus[ispecindex][0].header
-                anu1 = int(aspecindexhdr['FREQ1'] / 1E9)
-                anu2 = int(aspecindexhdr['FREQ2'] / 1E9)
-                if (anu2 < anu1):
-                    sys.exit("wrong order for specindexes")
-                inu1 = np.argmin(np.fabs(recordfreqs - anu1))
-                inu2 = np.argmin(np.fabs(recordfreqs - anu2))
-                Inu1s.append(Inus[inu1])
-                nu1s.append(anu1)
-                nu2s.append(anu2)
-                aspecindex = aspecindexmap[ix, iy]
-                specindexes.append(aspecindex)
-                aerrspecindexmap = mfreq_errspecindexhdus[ispecindex][0].data
-                aerrspecindex = aerrspecindexmap[ix, iy]
-                errspecindexes.append(aerrspecindex)
+            if ZMerit.with_specindexdata:
+                errspecindexes = []
+                Inu1s = []
+                nu1s = []
+                nu2s = []
+                for ispecindex in range(nspecindexs):
+                    aspecindexmap = mfreq_specindexhdus[ispecindex][0].data
+                    aspecindexhdr = mfreq_specindexhdus[ispecindex][0].header
+                    anu1 = int(aspecindexhdr['FREQ1'] / 1E9)
+                    anu2 = int(aspecindexhdr['FREQ2'] / 1E9)
+                    if (anu2 < anu1):
+                        sys.exit("wrong order for specindexes")
+                    inu1 = np.argmin(np.fabs(recordfreqs - anu1))
+                    inu2 = np.argmin(np.fabs(recordfreqs - anu2))
+                    Inu1s.append(Inus[inu1])
+                    nu1s.append(anu1)
+                    nu2s.append(anu2)
+                    aspecindex = aspecindexmap[ix, iy]
+                    specindexes.append(aspecindex)
+                    aerrspecindexmap = mfreq_errspecindexhdus[ispecindex][
+                        0].data
+                    aerrspecindex = aerrspecindexmap[ix, iy]
+                    errspecindexes.append(aerrspecindex)
 
-            nu1s = np.array(nu1s)
-            nu2s = np.array(nu2s)
+                nu1s = np.array(nu1s)
+                nu2s = np.array(nu2s)
+
             AData = SEDOptim.Data()
             AData.copy(ZData)
             AData.Inus = Inus
@@ -330,13 +342,16 @@ def exec_imoptim(
                     AData.sInus = rmsnoises
             else:
                 AData.sInus = np.array(Inus) * fluxcal_accuracy
-            AData.alphas = np.array(specindexes) + shift_intraband_specindex
-            AData.Inu1s = np.array(Inu1s)  # AData.Inus.copy()
-            if shift_fluxcal is not None:
-                AData.salphas = np.array(errspecindexes)
-            else:
-                AData.salphas = np.array(errspecindexes) + (
-                    np.log(1. + intraband_accuracy) / np.log(nu2s / nu1s))
+
+            if ZMerit.with_specindexdata:
+                AData.alphas = np.array(
+                    specindexes) + shift_intraband_specindex
+                AData.Inu1s = np.array(Inu1s)  # AData.Inus.copy()
+                if shift_fluxcal is not None:
+                    AData.salphas = np.array(errspecindexes)
+                else:
+                    AData.salphas = np.array(errspecindexes) + (
+                        np.log(1. + intraband_accuracy) / np.log(nu2s / nu1s))
 
             tasks.append([ix, iy, AData])
 
@@ -370,8 +385,10 @@ def exec_imoptim(
 
         for ifreq in range(nfreqs):
             modelimages[ifreq][ix, iy] = modelInus[ifreq] * ZData.omega_beam
-        for ispecindex in range(nspecindexs):
-            modelspecindexs[ispecindex][ix, iy] = modelalphas[ispecindex]
+            
+        if ZMerit.with_specindexdata:
+            for ispecindex in range(nspecindexs):
+                modelspecindexs[ispecindex][ix, iy] = modelalphas[ispecindex]
 
         for iparam, aname in enumerate(names):
             if 'Tdust' in aname:
@@ -396,12 +413,14 @@ def exec_imoptim(
         modelfile = re.sub('.fits', '_model.fits', datafile)
         punchmap(modelimages[ifreq], hdu_canvas, fileout=outputdir + modelfile)
 
-    for ispecindex in range(nspecindexs):
-        datafile = os.path.basename(files_specindex[ispecindex])
-        modelfile = re.sub('.fits', '_model.fits', datafile)
-        punchmap(modelspecindexs[ispecindex],
-                 hdu_canvas,
-                 fileout=outputdir + modelfile)
+    
+    if ZMerit.with_specindexdata:
+        for ispecindex in range(nspecindexs):
+            datafile = os.path.basename(files_specindex[ispecindex])
+            modelfile = re.sub('.fits', '_model.fits', datafile)
+            punchmap(modelspecindexs[ispecindex],
+                     hdu_canvas,
+                     fileout=outputdir + modelfile)
 
     punchmap(imlogTdust, hdu_canvas, fileout=outputdir + 'imlogTdust.fits')
     punchmap(supimlogTdust,

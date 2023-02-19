@@ -76,7 +76,7 @@ def summary_SEDs(nvar,
             maxLvalueCG = CGbestparams[iparam]
             UseCGBestFit = True
             print("USING POWELL FOR MAX LIKELIHOOD VALUES")
-            
+
             #if dolog:
             #    maxLvalueCG = 10**(maxLvalueCG)
             Ztitle_CG = Ztitle_CG + name + r'= %.2f ' % (maxLvalueCG)
@@ -90,10 +90,10 @@ def summary_SEDs(nvar,
                 maxLvalue = maxLvalueCG
             else:
                 maxLvalue = mcmc_bestparams[iparam]
-                
+
             value = parmcmc_results[0]
             reportvalue = maxLvalue
-            
+
             adjust_medianvalrange = True
             if adjust_medianvalrange:
                 upperval = mcmc_results[iparam][0] + mcmc_results[iparam][1]
@@ -104,11 +104,10 @@ def summary_SEDs(nvar,
                 uperror = parmcmc_results[1]
                 downerror = parmcmc_results[2]
 
-            if (uperror < 0.) | (downerror < 0.) :
+            if (uperror < 0.) | (downerror < 0.):
                 reportvalue = parmcmc_results[0]
                 uperror = parmcmc_results[1]
                 downerror = parmcmc_results[2]
-                
 
             #if dolog:
             #    uperror = 10**(value + uperror) - 10**(value)
@@ -131,19 +130,17 @@ def summary_SEDs(nvar,
                 latexname = r'$\log\left(\frac{a_{\rm max}}{{\rm cm}}\right)$'
                 latexname = r'$\log\left(a_{\rm max}/{\rm cm}\right)$'
                 latexname = r'$\log\left(a_{\rm max}/{\rm mm}\right)$'
-                reportvalue = 1.+reportvalue
-                
+                reportvalue = 1. + reportvalue
+
             Ztitle_mcmc = Ztitle_mcmc + latexname + r'= %.2f$^{+%.2f}_{-%.2f}$  ' % (
                 reportvalue, uperror, downerror)
 
             if name != 'Sigma_g':
                 Ztitle_mcmc += '\n'
 
-
         if UseCGBestFit:
             Ztitle_CG = Ztitle_mcmc
-            
-                
+
     N_freqs = 100
     lognu1 = np.log10(90E9)
     lognu2 = np.log10(700E9)
@@ -198,8 +195,8 @@ def summary_SEDs(nvar,
             #'\n' + Ztitle_mcmc)
             #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ ' +'\n' +  Ztitle_mcmc)
             label=Ztitle_CG)
-        
-        legendtext=Ztitle_CG
+
+        legendtext = Ztitle_CG
 
     elif mcmc_results:
         assignfreeparams(names, mcmc_bestparams, ASED4plots)
@@ -215,8 +212,8 @@ def summary_SEDs(nvar,
             #label=r'$I_\nu\, / \,(\nu/ \rm{100GHz})^2   $ ' +'\n' +  Ztitle_mcmc)
             label=Ztitle_mcmc)
 
-        legendtext=Ztitle_mcmc
-        
+        legendtext = Ztitle_mcmc
+
         PlotMedianValues = False
         if PlotMedianValues:
             ASED4plotsmedian = AModelSED.MSED(ZSetup4plots)
@@ -259,7 +256,7 @@ def summary_SEDs(nvar,
              marker='x',
              linestyle='none')
 
-    plt.title(trueparams,fontsize=8)
+    plt.title(trueparams, fontsize=8)
 
     if ZData.nus_alphas is not None:
         for ispecindex in range(len(ZData.alphas)):
@@ -301,8 +298,8 @@ def summary_SEDs(nvar,
         r'$I_\nu\, / \,\left(\frac{\nu}{\rm{100GHz}}\right)^2  ~~ / ~\mu$Jy beam$^{-1}$'
     )
     plt.xlabel(r'$\nu~~$ / GHz')
-    print("xscale",xscale)
-    print("yscale",yscale)
+    print("xscale", xscale)
+    print("yscale", yscale)
     plt.xscale(xscale)
     plt.yscale(yscale)
     plt.legend(handlelength=0.)
@@ -312,7 +309,7 @@ def summary_SEDs(nvar,
     ax = plt.gca()
     ax.set_xscale(xscale)
     ax.set_yscale(yscale)
-    ax.tick_params(which='both',axis='x', labelsize=8)
+    ax.tick_params(which='both', axis='x', labelsize=8)
     ax.xaxis.set_major_formatter(mticker.ScalarFormatter())
     ax.xaxis.set_minor_formatter(mticker.ScalarFormatter())
     ax.ticklabel_format(style='plain', axis='x')
@@ -324,7 +321,7 @@ def summary_SEDs(nvar,
     #plt.grid()
     fileout = workdir + filename
     print(fileout)
-    plt.savefig(fileout, bbox_inches='tight',dpi=500)
+    plt.savefig(fileout, bbox_inches='tight', dpi=500)
 
 
 def assignfreeparams(parnames, values, ASED):
@@ -662,7 +659,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
         print("check initial chi2 value")
 
     ASED4alphas = None
-    if ZData.nus_alphas is not None:
+    if ZMerit.with_specindexdata:
         ASED4alphas = AModelSED.MSED(ZSetup)
         ASED4alphas.copy(ASED)
         if ASED4alphas.GoInterp:
@@ -924,7 +921,7 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     return [names, mcmc_results, bestparams, modelInus, modelalphas, achi2]
 
 
-def logL(ZData, ASED, ASED4alphas=False, Regul=False):
+def logL(ZData, ASED, with_specindexdata=False, ASED4alphas=False, Regul=False):
 
     if (np.sum(ZData.sInus) == 0):
         chi2 = np.array([0.])
@@ -934,7 +931,7 @@ def logL(ZData, ASED, ASED4alphas=False, Regul=False):
     retvals = [chi2, ASED.Inus]
     # print("chi2  = ", chi2, " dofs ", len(ZData.Inus), ASED.Inus, ASED.Tdust, ASED.Sigma_g, ASED.amax, ASED.q_dustexpo, ZData.sInus)
 
-    if ASED4alphas:
+    if with_specindexdata:
         npairs = int(len(ASED4alphas.nus) / 2)
         alphas = np.zeros(npairs)
         nu1s = np.zeros(npairs)
@@ -1030,6 +1027,7 @@ class Merit():
 
     def __init__(
         self,
+        with_specindexdata=False,
         VerboseInit=False,
         ExecTimeReport=False,
         Regul=False,
@@ -1053,7 +1051,7 @@ class Merit():
             time_end_1 = time()
             print("time for ASED calcul: ", time_end_1 - time_start, " s")
 
-        if ASED4alphas is not None:
+        if self.with_specindexdata:
             ASED4alphas.calcul()
             if self.ExecTimeReport:
                 time_end_2 = time()
@@ -1061,7 +1059,7 @@ class Merit():
                       " s")
 
         #print("calling LogL ",ASED.Tdust,ASED.amax, ASED.Sigma_g, ASED.q_dustexpo, ASED.nus, ASED.Inus)
-        retvals = logL(ZData, ASED, ASED4alphas=ASED4alphas, Regul=self.Regul)
+        retvals = logL(ZData, ASED, with_specindexdata=self.with_specindexdata, ASED4alphas=ASED4alphas, Regul=self.Regul)
         #chi2 = retvals[0]
         #print("result ",retvals[0], ASED.nus,ASED.Inus, ASED4alphas.Inus, ASED.amax, )
 

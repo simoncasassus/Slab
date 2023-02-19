@@ -99,9 +99,14 @@ def gengrid(freqs, ZSetup, filetag=''):
         hdulabs.append(ahdu_abs)
         hdulscat.append(ahdu_scat)
 
-    hdulabs.writeto(ZSetup.outputdir + 'kappa_abs_grid' + filetag + '.fits',
+
+        
+    if (not (os.path.exists(ZSetup.griddir))):
+        os.system("mkdir " + ZSetup.griddir)
+
+    hdulabs.writeto(ZSetup.griddir + 'kappa_abs_grid' + filetag + '.fits',
                     overwrite=True)
-    hdulscat.writeto(ZSetup.outputdir + 'kappa_scat_grid' + filetag + '.fits',
+    hdulscat.writeto(ZSetup.griddir + 'kappa_scat_grid' + filetag + '.fits',
                      overwrite=True)
 
 
