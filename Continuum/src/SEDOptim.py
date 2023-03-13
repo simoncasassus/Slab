@@ -22,10 +22,10 @@ c_MKS = const.c.value  # m/s
 k_B = const.k_B.value
 
 HOME = os.environ.get('HOME')
-include_path = HOME + '/gitcommon/Slab/Continuum/'
+include_path = HOME + '/gitcommon/'
 sys.path.append(include_path)
 
-import AModelSED
+import Slab.Continuum.src.AModelSED as AModelSED
 
 if not sys.warnoptions:
     import os, warnings
@@ -239,15 +239,17 @@ def summary_SEDs(nvar,
         datalabel = ''
 
     Inorm_Data = (ZData.nus / 100E9)**2
-    plt.errorbar(ZData.nus / 1E9,
-                 scaleunits * ZData.omega_beam * ZData.Inus / Inorm_Data,
-                 yerr=scaleunits * ZData.omega_beam * ZData.sInus / Inorm_Data,
-                 color='C1',
-                 zorder=1,
-                 label=datalabel,
-                 elinewidth=3,
-                 linestyle='none',
-                 barsabove=True)
+    plt.errorbar(
+        ZData.nus / 1E9,
+        scaleunits * ZData.omega_beam * ZData.Inus / Inorm_Data,
+        yerr=scaleunits * ZData.omega_beam * ZData.sInus / Inorm_Data,
+        #yerr=scaleunits * ZData.omega_beam * 0.1 * ZData.Inus / Inorm_Data,
+        color='C1',
+        zorder=1,
+        label=datalabel,
+        elinewidth=3,
+        linestyle='none',
+        barsabove=True)
 
     plt.plot(ZData.nus / 1E9,
              scaleunits * ZData.omega_beam * ZData.Inus / Inorm_Data,
@@ -256,7 +258,8 @@ def summary_SEDs(nvar,
              marker='x',
              linestyle='none')
 
-    plt.title(trueparams, fontsize=8)
+    if trueparams:
+        plt.title(trueparams, fontsize=8)
 
     if ZData.nus_alphas is not None:
         for ispecindex in range(len(ZData.alphas)):
@@ -828,17 +831,30 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     #corner plots
     if OptimM.CornerPlots:
+        cornerplotlabels = []
+        for aname in names:
+            if aname == 'log(Tdust)':
+                cornerplotlabels.append(r'$\log(T_{\rm d})$')
+            elif aname == 'log(amax)':
+                cornerplotlabels.append(r'$\log(a_{\rm max})$')
+            elif aname == 'log(Sigma_g)':
+                cornerplotlabels.append(r'$\log(\Sigma_{\rm g})$')
+            elif aname == 'q_dustexpo':
+                cornerplotlabels.append(r'$q_{\rm dust}$')
+            else:
+                cornerplotlabels.append(aname)
+
         import corner
         print("calling corner")
         fig = corner.corner(
             chains,
-            labels=names,
+            labels=cornerplotlabels,
             quantiles=[0.16, 0.5, 0.84],
             bins=40,  #truths=bestparams,
             levels=[0.68, 0.95, 0.997],
             #                  levels=3,
             show_titles=True,
-            title_fmt=".1f",
+            title_fmt=".2f",
             title_kwards={"fontsize": 6})  #, smooth=1.0
 
         fig.savefig(workdir + "triangle_all.png")
@@ -921,7 +937,11 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
     return [names, mcmc_results, bestparams, modelInus, modelalphas, achi2]
 
 
-def logL(ZData, ASED, with_specindexdata=False, ASED4alphas=False, Regul=False):
+def logL(ZData,
+         ASED,
+         with_specindexdata=False,
+         ASED4alphas=False,
+         Regul=False):
 
     if (np.sum(ZData.sInus) == 0):
         chi2 = np.array([0.])
@@ -1059,7 +1079,11 @@ class Merit():
                       " s")
 
         #print("calling LogL ",ASED.Tdust,ASED.amax, ASED.Sigma_g, ASED.q_dustexpo, ASED.nus, ASED.Inus)
-        retvals = logL(ZData, ASED, with_specindexdata=self.with_specindexdata, ASED4alphas=ASED4alphas, Regul=self.Regul)
+        retvals = logL(ZData,
+                       ASED,
+                       with_specindexdata=self.with_specindexdata,
+                       ASED4alphas=ASED4alphas,
+                       Regul=self.Regul)
         #chi2 = retvals[0]
         #print("result ",retvals[0], ASED.nus,ASED.Inus, ASED4alphas.Inus, ASED.amax, )
 
@@ -1076,6 +1100,7 @@ class OptimM():
     def __init__(
             self,
             RunMCMC=False,
+            MCMCresult_UseMedian=False,
             RunConjGrad=True,
             CGmaxiter=100,
             MCMC_Nit=100,  #MCMC iterations

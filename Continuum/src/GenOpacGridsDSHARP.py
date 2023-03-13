@@ -14,9 +14,9 @@ import dsharp_opac as opacity
 
 # matplotlib.use('Agg')
 HOME = os.environ.get('HOME')
-include_path = HOME + '/gitcommon/Slab/Continuum/'
+include_path = HOME + '/gitcommon/'
 sys.path.append(include_path)
-import AModelSED
+import Slab.Continuum.src.AModelSED as AModelSED
 
 c_MKS = const.c.value  # m/s
 

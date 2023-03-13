@@ -5,7 +5,8 @@ from astropy.io import fits
 import scipy
 import scipy.signal
 
-import matplotlib 
+import matplotlib
+from matplotlib.colors import LogNorm
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,17 +14,17 @@ import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.signal import medfilt2d
 
-include_path = '/Users/simon/common/python/include/'
+include_path = '/home/simon/common/python/include/'
 sys.path.append(include_path)
 
-#import Vtools
+#from PyVtools import Vtools
 
 
 def colorbar(Mappable, Orientation='horizontal', cbfmt="%.1e"):
     Ax = Mappable.axes
     fig = Ax.figure
     divider = make_axes_locatable(Ax)
-    Cax = divider.append_axes("top", size="5%", pad=0.55)
+    Cax = divider.append_axes("top", size="5%", pad=0.35)
     return fig.colorbar(mappable=Mappable,
                         cax=Cax,
                         use_gridspec=True,
@@ -51,6 +52,10 @@ def addimage(iplotpos,
              atitle,
              filename_grey,
              filename_contours,
+             mask=None,
+             errmask=False,
+             errthresh4mask=0.1,
+             filename_serr=None,
              VisibleXaxis=False,
              VisibleYaxis=True,
              DoBeamEllipse=False,
@@ -62,24 +67,26 @@ def addimage(iplotpos,
              SymmetricRange=False,
              MedianvalRange=False,
              DoCB=True,
+             DoAxesLabels=True,
              cmap='RdBu_r',
              MedRms=True,
              Zoom=False,
              side=1.5,
-             scaleunits=1E3,
+             scaleunits=1.,
              DoInterestingRegion=False,
              cbunits='Jy/beam',
+             workdir='',
              cbfmt='%.2f'):
 
     print("nplotsx ", nplotsx, iplotpos)
     ax = plt.subplot(nplotsy, nplotsx, iplotpos)
     # ax=axes[iplotpos]
 
-    if ((iplotpos % nplotsx) == 1):
-        ax.set_ylabel(r'$\delta$  offset / arcsec')
-    if (iplotpos > (nplotsx * (nplotsy - 1))):
-        ax.set_xlabel(r'$\alpha$ offset / arcsec')
-
+    if DoAxesLabels:
+        if ((iplotpos % nplotsx) == 1):
+            ax.set_ylabel(r'$\delta$  offset / arcsec')
+        if (iplotpos > (nplotsx * (nplotsy - 1))):
+            ax.set_xlabel(r'$\alpha$ offset / arcsec')
 
     plt.setp(ax.get_xticklabels(), visible=VisibleXaxis)
     plt.setp(ax.get_yticklabels(), visible=VisibleYaxis)
@@ -98,7 +105,6 @@ def addimage(iplotpos,
     ax.spines['left'].set_color('grey')
     ax.spines['top'].set_color('grey')
     ax.spines['bottom'].set_color('grey')
-
 
     print("loading filename_grey", filename_grey)
 
@@ -126,25 +132,47 @@ def addimage(iplotpos,
         i0 = int(i_star - (nx - 1.) / 2. + 1)
         i1 = int(i_star + (nx - 1.) / 2. + 1)
         subim_grey = im_grey[j0:j1, i0:i1]
-
+        a0 = side / 2.
+        a1 = -side / 2.
+        d0 = -side / 2.
+        d1 = side / 2.
     else:
         side = side0
         i0 = 0
-        i1 = hdr_grey['NAXIS1'] - 1
+        i1 = hdr_grey['NAXIS1']
         j0 = 0
-        j1 = hdr_grey['NAXIS2'] - 1
+        j1 = hdr_grey['NAXIS2']
 
         subim_grey = im_grey[:, :]
+        a0 = (i0-(hdr_grey['CRPIX1']-1))*hdr_grey['CDELT1']*3600.
+        a1 = (i1-(hdr_grey['CRPIX1']-1))*hdr_grey['CDELT1']*3600.
+        d0 = (j0-(hdr_grey['CRPIX2']-1))*hdr_grey['CDELT2']*3600.
+        d1 = (j1-(hdr_grey['CRPIX2']-1))*hdr_grey['CDELT2']*3600.
+        
+    
 
-    a0 = side / 2.
-    a1 = -side / 2.
-    d0 = -side / 2.
-    d1 = side / 2.
+    if mask is None:
 
- 
-    mask = np.ones(subim_grey.shape)
-    mask = np.where(mask > 0)
+        hdumask = fits.open(workdir+'intensitymask.fits')
+        #mask = np.ones(subim_grey.shape)
+        intmask=hdumask[0].data
+        mask = np.where(intmask > 0)
+        if errmask:
+            hduerr = fits.open(filename_serr)
+            print("filename_serr",filename_serr)
+            print("scaleunits",scaleunits)
+            im_err = hduerr[0].data * scaleunits
+            hdr_err = hduerr[0].header
+            subim_err = im_err[j0:j1, i0:i1]
+            #im_snr = subim_grey / subim_err
+            print("errthresh4mask",errthresh4mask)
+            mask = (subim_err < errthresh4mask) & (intmask > 0)
+            print("len(mask)", np.sum(mask))
+            #print("max SNR", np.nanmax(im_snr))
+            #print("min SNR", np.nanmin(im_snr))
 
+
+    
     if MedianvalRange:
         typicalvalue = np.median(subim_grey[mask])
         rms = np.std(subim_grey[mask])
@@ -160,9 +188,17 @@ def addimage(iplotpos,
         clevs = [range1, range2]
         clabels = ['%.1f' % (clevs[0]), '%.1f' % (clevs[1])]
     elif Range:
-        range2 = clevs[1]
-        range1 = clevs[0]
+        range2 = Range[1]
+        range1 = Range[0]
+        clevs = [range1, range2]
+        clabels = ['%.1f' % (range1), '%.1f' % (range2)]
+    else:
+        range2 = np.nanmax(subim_grey[mask])
+        range1 = np.nanmin(subim_grey[mask])
+        clevs = [range1, range2]
         clabels = ['%.1f' % (clevs[0]), '%.1f' % (clevs[1])]
+
+    subim_grey[np.invert(mask)] = np.nan
 
     if ('sigma' in filename_grey):
         cmap = 'magma_r'
@@ -172,7 +208,9 @@ def addimage(iplotpos,
     print("range1", range1, "range2", range2)
     if (np.isnan(subim_grey).any()):
         print("NaNs in subim_grey")
-    subim_grey = np.nan_to_num(subim_grey)
+    #subim_grey = np.nan_to_num(subim_grey)
+
+    #norm=LogNorm(vmin=range1, vmax=range2),
 
     theimage = ax.imshow(
         subim_grey,
@@ -183,22 +221,28 @@ def addimage(iplotpos,
         vmax=range2,
         interpolation='nearest')  #'nearest'  'bicubic'
 
-    #plt.plot(0.,0.,marker='*',color='yellow',markersize=0.2,markeredgecolor='black')
-    plt.plot(0.,
-             0.,
-             marker='+',
-             color='red',
-             markersize=2.,
-             alpha=0.6,
-             lw=0.05)
+    ax.contour(
+        mask,levels=[0.5],
+        origin='lower',color='black',lw=10,
+        extent=[a0, a1, d0, d1],
+        interpolation='nearest')  #'nearest'  'bicubic'
 
-    plt.plot(0.002,
-             0.017,
-             marker='+',
-             color='green',
-             markersize=2.,
-             alpha=0.6,
-             lw=0.05)
+    #plt.plot(0.,0.,marker='*',color='yellow',markersize=0.2,markeredgecolor='black')
+    #plt.plot(0.,
+    #         0.,
+    #         marker='+',
+    #         color='red',
+    #         markersize=2.,
+    #         alpha=0.6,
+    #         lw=0.05)
+    #
+    #plt.plot(0.002,
+    #         0.017,
+    #         marker='+',
+    #         color='green',
+    #         markersize=2.,
+    #         alpha=0.6,
+    #         lw=0.05)
 
     ax.text(a0 * 0.9,
             d1 * 0.9,
@@ -222,7 +266,6 @@ def addimage(iplotpos,
         print("CB label", cbunits)
         cb.set_label(cbunits)
 
- 
     if DoBeamEllipse:
         from matplotlib.patches import Ellipse
 
@@ -237,10 +280,10 @@ def addimage(iplotpos,
                     width=bmin,
                     height=bmaj,
                     angle=-bpa,
-                    color='blue')
+                    color='white')
         e.set_clip_box(axcb.bbox)
-        e.set_facecolor('yellow')
-        e.set_alpha(0.5)
+        e.set_facecolor('white')
+        e.set_alpha(1.)
         axcb.add_artist(e)
 
     if DoInterestingRegion:
@@ -263,18 +306,23 @@ def addimage(iplotpos,
         #e.set_alpha(0.5)
         axcb.add_artist(e)
 
-    return clevs, clabels
+    return clevs, clabels, mask
 
 
 def exec_summary(workdir,
-                 files_images,
+                 domain,
                  fileout,
-                 titles=[],
+                 DoCB=True,
+                 DoAxesLabels=True,
+                 WithAxes=True,
+                 errthresh4mask=0.1,
+                 WithErrors=True,
                  Zoom=False,
-                 WithModels=False,
-                 ilabelstart=0,
                  side=1.2):
-
+    """
+    errthresh4mask=0.1, defines the mask on the first param in domain 
+    
+    """
     print("workdir:", workdir)
     #matplotlib.rc('text', usetex=True)
     matplotlib.rc('font', family='sans-serif')
@@ -288,13 +336,11 @@ def exec_summary(workdir,
     # cmaps = ['magma', 'inferno', 'plasma', 'viridis', 'bone', 'afmhot', 'gist_heat', 'CMRmap', 'gnuplot', 'Blues_r', 'Purples_r', 'ocean', 'hot', 'seismic_r']
     gamma = 1.0
 
-    nplotsx = len(files_images)
-    nplotsy = 1
-    if WithModels:
-        nplotsy = 2
+    nplotsy = 2
+    nplotsx = int(len(domain))
 
-    subfigsize = 4.7
-    figsize = (18., subfigsize * nplotsy)
+    subfigsize = 3.
+    figsize = (subfigsize * nplotsx, 1.2 * subfigsize * nplotsy)
 
     # (fig0, axes) = plt.subplots(nrows=nplotsy,ncols=nplotsx,figsize=figsize)
 
@@ -303,86 +349,133 @@ def exec_summary(workdir,
     iplotpos = 0
 
     cmap = 'inferno'
+    #cmap = 'jet'
+    cmap = 'hot'
+    #cmap = 'ocean_r'
     labels = [
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'
     ]
+    VisibleXaxis = False
+    VisibleYaxis = False
 
-    for ifile, afile in enumerate(files_images):
-        atitle = titles[ifile]
-        label = labels[ifile + ilabelstart]
-        filename_contours = False
-        filename_grey = workdir + afile
+    #Range = False
+    #Range = [1., 5.]
+
+    for ipara, apara in enumerate(domain):
         iplotpos += 1
-        if 'specindex' in afile:
-            cbunits = ''
-            Range=[1.5,3.5]
+        parname = apara[0]
+        if 'Tdust' in parname:
+            mask=None
+            rootname = 'imlogTdust.fits'
+            atitle = r'$\log({\rm T}_{\rm d}/{\rm K})$'
+            cmap = 'hot'
+        elif 'amax' in parname:
+            rootname = 'imlogamax.fits'
+            atitle = r'$\log({\rm a}_{\rm max}/{\rm cm})$'
+            #cmap = 'jet'
+            cmap = 'Greens'
+        elif 'expo' in parname:
+            rootname = 'imq_dustexpo.fits'
+            atitle = r'$q$'
+            cmap = 'jet'
+        elif 'Sigma' in parname:
+            rootname = 'imlogSigma_g.fits'
+            atitle = r'$\log({\Sigma}_{\rm g}/{\rm g\,cm}^{-2})$'
+            cmap = 'Blues'
+            #cmap = 'binary'
         else:
-            cbunits = 'mJy/beam'
-            Range=False
-            
-        VisibleXaxis=True
-        if WithModels:
-            VisibleXaxis=False
-        VisibleYaxis=False
-        if iplotpos == 1:
-            VisibleYaxis=True
-        (clevs, clabels) = addimage(iplotpos,
-                                    label,
-                                    atitle,
-                                    filename_grey,
-                                    filename_contours=filename_contours,
-                                    VisibleXaxis=VisibleXaxis,
-                                    VisibleYaxis=VisibleYaxis,
-                                    DoBeamEllipse=True,
-                                    DoGreyCont=False,
-                                    nplotsx=nplotsx,
-                                    nplotsy=nplotsy,
-                                    SymmetricRange=False,
-                                    DoCB=True,
-                                    cmap=cmap,
-                                    Range=Range,
-                                    Zoom=Zoom,
-                                    side=side,
-                                    DoInterestingRegion=False,
-                                    cbunits=cbunits,
-                                    cbfmt='%.1f')
+            sys.exit("no such parameter", parname)
+        
+        filename_grey = workdir + rootname
+        filename_sup = workdir + 'sup' + rootname
+        filename_sdo = workdir + 'sdo' + rootname
+        filename_serr = workdir + 'serr' + rootname
+        label = labels[ipara]
+        cbunits = ''
 
-        if WithModels:
-            outputdir = WithModels
-            imodelplotpos = iplotpos + nplotsx 
-            atitle = atitle + ' model'
-            label=labels[imodelplotpos-1]
-            filename_grey = outputdir + re.sub(".fits", "_model.fits",
-                                               os.path.basename(afile))
-            
-            (clevs, clabels) = addimage(imodelplotpos,
-                                        label,
-                                        atitle,
-                                        filename_grey,
-                                        filename_contours=filename_contours,
-                                        VisibleXaxis=True,
-                                        VisibleYaxis=VisibleYaxis,
-                                        DoBeamEllipse=True,
-                                        DoGreyCont=False,
-                                        nplotsx=nplotsx,
-                                        nplotsy=nplotsy,
-                                        SymmetricRange=False,
-                                        DoCB=False,
-                                        cmap=cmap,
-                                        Zoom=Zoom,
-                                        Range=clevs,
-                                        side=side,
-                                        DoInterestingRegion=False,
-                                        cbunits=cbunits,
-                                        cbfmt='%.1f')
+        filename_contours = False
+        Range = apara[1]
 
-    plt.subplots_adjust(hspace=0.1)
-    plt.subplots_adjust(wspace=0.1)
+        if WithAxes:
+            VisibleXaxis = True
+            VisibleYaxis = False
+            if WithErrors:
+                VisibleXaxis = False
+            if iplotpos == 1:
+                VisibleYaxis = True
+                
+        (clevs, clabels, mask) = addimage(
+            iplotpos,
+            label,
+            atitle,
+            filename_grey,
+            mask=mask,
+            errthresh4mask=errthresh4mask,
+            errmask=True,
+            filename_serr=filename_serr,
+            filename_contours=filename_contours,
+            VisibleXaxis=VisibleXaxis,
+            VisibleYaxis=VisibleYaxis,
+            DoBeamEllipse=True,
+            DoGreyCont=False,
+            nplotsx=nplotsx,
+            nplotsy=nplotsy,
+            SymmetricRange=False,
+            DoCB=DoCB,
+            DoAxesLabels=DoAxesLabels,
+            cmap=cmap,
+            # Range=Range,
+            Zoom=Zoom,
+            side=side,
+            DoInterestingRegion=False,
+            cbunits=cbunits,
+            scaleunits=1.,
+            workdir=workdir,
+            cbfmt='%.2f')
+
+        if WithErrors:
+            ierrplotpos = iplotpos + nplotsx
+            atitle = atitle + ' error'
+            label = labels[ierrplotpos - 1]
+            filename_grey = filename_serr
+            cmap='binary'
+            #cmap='Greys'
+            (clevs, clabels, mask) = addimage(
+                ierrplotpos,
+                label,
+                atitle,
+                filename_grey,
+                mask=mask,
+                filename_contours=filename_contours,
+                VisibleXaxis=True,
+                VisibleYaxis=VisibleYaxis,
+                DoBeamEllipse=True,
+                DoGreyCont=False,
+                nplotsx=nplotsx,
+                #Range=Range,
+                nplotsy=nplotsy,
+                SymmetricRange=False,
+                DoCB=DoCB,
+                DoAxesLabels=DoAxesLabels,
+                cmap=cmap,
+                Zoom=Zoom,
+                #Range=clevs,
+                side=side,
+                DoInterestingRegion=False,
+                cbunits=cbunits,
+                cbfmt='%.2f')
+
+    plt.subplots_adjust(hspace=0.05)
+    #plt.subplots_adjust(wspace=0.1)
+
+    #plt.subplots_adjust(hspace=0.)
+    plt.subplots_adjust(wspace=0.05)
 
     print(fileout)
-    #plt.tight_layout()
+    plt.tight_layout()
 
-    plt.savefig(fileout, bbox_inches='tight', dpi=500)
+    #plt.savefig(fileout, bbox_inches='tight', dpi=500)
+    plt.savefig(fileout, bbox_inches='tight')
 
     #plt.savefig(fileout)
 

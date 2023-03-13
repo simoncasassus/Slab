@@ -5,7 +5,7 @@ from astropy.io import fits
 import scipy
 import scipy.signal
 
-import matplotlib 
+import matplotlib
 from matplotlib.colors import LogNorm
 
 import matplotlib.pyplot as plt
@@ -83,7 +83,6 @@ def addimage(iplotpos,
         if (iplotpos > (nplotsx * (nplotsy - 1))):
             ax.set_xlabel(r'$\alpha$ offset / arcsec')
 
-
     plt.setp(ax.get_xticklabels(), visible=VisibleXaxis)
     plt.setp(ax.get_yticklabels(), visible=VisibleYaxis)
 
@@ -101,7 +100,6 @@ def addimage(iplotpos,
     ax.spines['left'].set_color('grey')
     ax.spines['top'].set_color('grey')
     ax.spines['bottom'].set_color('grey')
-
 
     print("loading filename_grey", filename_grey)
 
@@ -129,6 +127,10 @@ def addimage(iplotpos,
         i0 = int(i_star - (nx - 1.) / 2. + 1)
         i1 = int(i_star + (nx - 1.) / 2. + 1)
         subim_grey = im_grey[j0:j1, i0:i1]
+        a0 = side / 2.
+        a1 = -side / 2.
+        d0 = -side / 2.
+        d1 = side / 2.
 
     else:
         side = side0
@@ -138,13 +140,12 @@ def addimage(iplotpos,
         j1 = hdr_grey['NAXIS2'] - 1
 
         subim_grey = im_grey[:, :]
+        a0 = (i0-(hdr_grey['CRPIX1']-1))*hdr_grey['CDELT1']*3600.
+        a1 = (i1-(hdr_grey['CRPIX1']-1))*hdr_grey['CDELT1']*3600.
+        d0 = (j0-(hdr_grey['CRPIX2']-1))*hdr_grey['CDELT2']*3600.
+        d1 = (j1-(hdr_grey['CRPIX2']-1))*hdr_grey['CDELT2']*3600.
 
-    a0 = side / 2.
-    a1 = -side / 2.
-    d0 = -side / 2.
-    d1 = side / 2.
 
- 
     mask = np.ones(subim_grey.shape)
     mask = np.where(mask > 0)
 
@@ -233,7 +234,6 @@ def addimage(iplotpos,
         print("CB label", cbunits)
         cb.set_label(cbunits)
 
- 
     if DoBeamEllipse:
         from matplotlib.patches import Ellipse
 
@@ -282,15 +282,20 @@ def exec_summary(workdir,
                  fileout,
                  titles=[],
                  Zoom=False,
+                 outputdir=None,
                  WithModels=False,
                  ilabelstart=0,
-                 nplotsy = 2,
+                 nplotsy=2,
                  IsSpecIndex=False,
                  DoCB=True,
                  DoAxesLabels=True,
                  WithAxes=True,
                  side=1.2):
 
+    if outputdir is not None:
+        print("plotting model files from ",outputdir)
+        WithModels=True
+        
     print("workdir:", workdir)
     #matplotlib.rc('text', usetex=True)
     matplotlib.rc('font', family='sans-serif')
@@ -304,17 +309,15 @@ def exec_summary(workdir,
     # cmaps = ['magma', 'inferno', 'plasma', 'viridis', 'bone', 'afmhot', 'gist_heat', 'CMRmap', 'gnuplot', 'Blues_r', 'Purples_r', 'ocean', 'hot', 'seismic_r']
     gamma = 1.0
 
-    
     if WithModels:
         nplotsy = 2
         nplotsx = int(len(files_images))
     else:
-        nplotsy = 1 
+        nplotsy = 1
         nplotsx = len(files_images)
-    
 
     subfigsize = 3.5
-    figsize = (subfigsize*nplotsx ,subfigsize * nplotsy)
+    figsize = (subfigsize * nplotsx, subfigsize * nplotsy)
 
     # (fig0, axes) = plt.subplots(nrows=nplotsy,ncols=nplotsx,figsize=figsize)
 
@@ -328,12 +331,12 @@ def exec_summary(workdir,
     labels = [
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'
     ]
-    VisibleXaxis=False
-    VisibleYaxis=False
+    VisibleXaxis = False
+    VisibleYaxis = False
 
-    Range=False
+    Range = False
     if IsSpecIndex:
-        Range=[1.,5.]
+        Range = [1., 5.]
     for ifile, afile in enumerate(files_images):
         atitle = titles[ifile]
         label = labels[ifile + ilabelstart]
@@ -342,19 +345,19 @@ def exec_summary(workdir,
         iplotpos += 1
         if 'specind' in afile:
             cbunits = ''
-            Range=[1.,4.]
-            scaleunits=1.
+            Range = [1., 4.]
+            scaleunits = 1.
         else:
             cbunits = 'mJy/beam'
-            Range=False
-            scaleunits=1E3
+            Range = False
+            scaleunits = 1E3
 
         if WithAxes:
-            VisibleXaxis=True
+            VisibleXaxis = True
             if WithModels:
-                VisibleXaxis=False
+                VisibleXaxis = False
             if iplotpos == 1:
-                VisibleYaxis=True
+                VisibleYaxis = True
         (clevs, clabels) = addimage(iplotpos,
                                     label,
                                     atitle,
@@ -379,40 +382,40 @@ def exec_summary(workdir,
                                     cbfmt='%.2f')
 
         if WithModels:
-            outputdir = WithModels
-            imodelplotpos = iplotpos + nplotsx 
+            imodelplotpos = iplotpos + nplotsx
             atitle = atitle + ' model'
-            label=labels[imodelplotpos-1]
-            filename_grey = outputdir + re.sub(".fits", "_model.fits",
-                                               os.path.basename(afile))
-            
-            (clevs, clabels) = addimage(imodelplotpos,
-                                        label,
-                                        atitle,
-                                        filename_grey,
-                                        filename_contours=filename_contours,
-                                        VisibleXaxis=True,
-                                        VisibleYaxis=VisibleYaxis,
-                                        DoBeamEllipse=True,
-                                        DoGreyCont=False,
-                                        nplotsx=nplotsx,
-                                        Range=Range,
-                                        nplotsy=nplotsy,
-                                        SymmetricRange=False,
-                                        DoCB=DoCB,
-                                        DoAxesLabels=DoAxesLabels,
-                                        cmap=cmap,
-                                        Zoom=Zoom,
-                                        #Range=clevs,
-                                        side=side,
-                                        DoInterestingRegion=False,
-                                        scaleunits=scaleunits,
-                                        cbunits=cbunits,
-                                        cbfmt='%.2f')
+            label = labels[imodelplotpos - 1]
+            modelfile=re.sub("(_resamp)?.fits", "_model.fits",os.path.basename(afile))
+            filename_grey = outputdir + modelfile
+
+            (clevs, clabels) = addimage(
+                imodelplotpos,
+                label,
+                atitle,
+                filename_grey,
+                filename_contours=filename_contours,
+                VisibleXaxis=True,
+                VisibleYaxis=VisibleYaxis,
+                DoBeamEllipse=True,
+                DoGreyCont=False,
+                nplotsx=nplotsx,
+                Range=Range,
+                nplotsy=nplotsy,
+                SymmetricRange=False,
+                DoCB=DoCB,
+                DoAxesLabels=DoAxesLabels,
+                cmap=cmap,
+                Zoom=Zoom,
+                #Range=clevs,
+                side=side,
+                DoInterestingRegion=False,
+                scaleunits=scaleunits,
+                cbunits=cbunits,
+                cbfmt='%.2f')
 
     plt.subplots_adjust(hspace=0.1)
     plt.subplots_adjust(wspace=0.1)
-    
+
     plt.subplots_adjust(hspace=0.)
     plt.subplots_adjust(wspace=0.)
 

@@ -26,11 +26,11 @@ from ImUtils.Cube2Im import slice0
 #from Gausssmooth import Gauss_filter
 
 HOME = os.environ.get('HOME')
-include_path = HOME + '/gitcommon/Slab/Continuum/'
+include_path = HOME + '/gitcommon/'
 sys.path.append(include_path)
 
-import AModelSED
-import SEDOptim
+import Slab.Continuum.src.AModelSED as AModelSED
+import Slab.Continuum.src.SEDOptim as SEDOptim
 
 
 def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
@@ -47,15 +47,16 @@ def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
     hdr = deepcopy(hdr0)
     hdr['CDELT1'] *= zoomfactor
     hdr['CDELT2'] *= zoomfactor
-    hdr['NAXIS1'] /= zoomfactor
-    hdr['NAXIS2'] /= zoomfactor
-    nx = hdr['NAXIS1']
-    ny = hdr['NAXIS2']
-    i0 = int((nx - 1) / 2)
-    j0 = int((ny - 1) / 2)
 
+    i0 = (hdr['CRPIX1'] - 1) / zoomfactor
+    j0 = (hdr['CRPIX2'] - 1) / zoomfactor
     hdr['CRPIX1'] = i0 + 1
     hdr['CRPIX2'] = j0 + 1
+
+    nx = np.rint(((hdr0['NAXIS1'] - 1) / zoomfactor) + 1)
+    ny = np.rint(((hdr0['NAXIS2'] - 1) / zoomfactor) + 1)
+    hdr['NAXIS1'] = nx
+    hdr['NAXIS2'] = ny
 
     f1 = gridding(hdu, hdr, ReturnHDUList=True)
     im = f1[0].data
@@ -222,6 +223,8 @@ def exec_imoptim(
     sdoimlogSigma_g = np.zeros(im_canvas.shape)
     chi2map = np.zeros(im_canvas.shape)
 
+    intensitymask = np.zeros(im_canvas.shape, dtype=int)
+
     modelimages = []
     for ifreq in range(nfreqs):
         amodelimage = np.zeros(im_canvas.shape)
@@ -244,7 +247,7 @@ def exec_imoptim(
     hdr_canvas = hdu_canvas[0].header
     ivec = np.arange(0, nx)
     jvec = np.arange(0, ny)
-    iis, jjs = np.meshgrid(ivec, jvec)
+    jjs, iis = np.meshgrid(ivec, jvec)
     xxs = hdr_canvas['CDELT1'] * 3600. * (iis - (hdr_canvas['CRPIX1'] - 1))
     yys = hdr_canvas['CDELT2'] * 3600. * (jjs - (hdr_canvas['CRPIX2'] - 1))
     rrs = np.sqrt(xxs**2 + yys**2)
@@ -269,13 +272,15 @@ def exec_imoptim(
 
     for ix in range(nx):
         for iy in range(ny):
-            
+
             if SingleLOS is not None:
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
                 print("ix ", ix, " iy ", iy)
                 print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy], "radius",
                       rrs[ix, iy])
+                #print("alpha DEV :", xxs[iy, ix], "delta:", yys[iy, ix], "radius",
+                #      rrs[iy, ix])
                 print("1off alpha  :", xxs[ix, iy], "delta:", yys[ix, iy],
                       "radius", rrs[ix + 1, iy])
             Inus = []
@@ -293,12 +298,13 @@ def exec_imoptim(
 
             ifreq_thresh = intensity_threshold[0]
             nthresh = intensity_threshold[1]
-            if (Inus[ifreq_thresh] < nthresh * rmsnoises[0]):
+            if (Inus[ifreq_thresh] < nthresh * rmsnoises[ifreq_thresh]):
                 if SingleLOS is not None:
                     print("below noise threshold, intensity is",
                           Inus[ifreq_thresh], " noise is: ", rmsnoises[0])
-
                 continue
+
+            intensitymask[ix, iy] = 1
 
             Inus = np.array(Inus)
             if shift_fluxcal is not None:
@@ -335,11 +341,11 @@ def exec_imoptim(
             AData.copy(ZData)
             AData.Inus = Inus
             if rmsnoises is not None:
-                if shift_fluxcal is not None:
-                    AData.sInus = np.sqrt(rmsnoises**2 + (np.array(Inus) *
-                                                          fluxcal_accuracy)**2)
-                else:
-                    AData.sInus = rmsnoises
+                #if shift_fluxcal is not None:
+                AData.sInus = np.sqrt(rmsnoises**2 +
+                                      (np.array(Inus) * fluxcal_accuracy)**2)
+                #else:
+                #    AData.sInus = rmsnoises
             else:
                 AData.sInus = np.array(Inus) * fluxcal_accuracy
 
@@ -371,6 +377,9 @@ def exec_imoptim(
         pool.close()
         pool.join()
 
+    if SingleLOS is not None:
+        return
+
     for alos in Pooloutput:
         ix = alos[0][0]
         iy = alos[0][1]
@@ -385,26 +394,38 @@ def exec_imoptim(
 
         for ifreq in range(nfreqs):
             modelimages[ifreq][ix, iy] = modelInus[ifreq] * ZData.omega_beam
-            
+
         if ZMerit.with_specindexdata:
             for ispecindex in range(nspecindexs):
                 modelspecindexs[ispecindex][ix, iy] = modelalphas[ispecindex]
 
         for iparam, aname in enumerate(names):
             if 'Tdust' in aname:
-                imlogTdust[ix, iy] = bestparams[iparam]
+                if OptimM.MCMCresult_UseMedian:
+                    imlogTdust[ix, iy] = mcmc_results[iparam][0]
+                else:
+                    imlogTdust[ix, iy] = bestparams[iparam]
                 supimlogTdust[ix, iy] = mcmc_results[iparam][1]
                 sdoimlogTdust[ix, iy] = mcmc_results[iparam][2]
             if 'dustexpo' in aname:
-                imq_dustexpo[ix, iy] = bestparams[iparam]
+                if OptimM.MCMCresult_UseMedian:
+                    imq_dustexpo[ix, iy] = mcmc_results[iparam][0]
+                else:
+                    imq_dustexpo[ix, iy] = bestparams[iparam]
                 supimq_dustexpo[ix, iy] = mcmc_results[iparam][1]
                 sdoimq_dustexpo[ix, iy] = mcmc_results[iparam][2]
             if 'amax' in aname:
-                imlogamax[ix, iy] = bestparams[iparam]
+                if OptimM.MCMCresult_UseMedian:
+                    imlogamax[ix, iy] = mcmc_results[iparam][0]
+                else:
+                    imlogamax[ix, iy] = bestparams[iparam]
                 supimlogamax[ix, iy] = mcmc_results[iparam][1]
                 sdoimlogamax[ix, iy] = mcmc_results[iparam][2]
             if 'Sigma_g' in aname:
-                imlogSigma_g[ix, iy] = bestparams[iparam]
+                if OptimM.MCMCresult_UseMedian:
+                    imlogSigma_g[ix, iy] = mcmc_results[iparam][0]
+                else:
+                    imlogSigma_g[ix, iy] = bestparams[iparam]
                 supimlogSigma_g[ix, iy] = mcmc_results[iparam][1]
                 sdoimlogSigma_g[ix, iy] = mcmc_results[iparam][2]
 
@@ -413,7 +434,6 @@ def exec_imoptim(
         modelfile = re.sub('.fits', '_model.fits', datafile)
         punchmap(modelimages[ifreq], hdu_canvas, fileout=outputdir + modelfile)
 
-    
     if ZMerit.with_specindexdata:
         for ispecindex in range(nspecindexs):
             datafile = os.path.basename(files_specindex[ispecindex])
@@ -422,6 +442,10 @@ def exec_imoptim(
                      hdu_canvas,
                      fileout=outputdir + modelfile)
 
+    punchmap(intensitymask,
+             hdu_canvas,
+             fileout=outputdir + 'intensitymask.fits')
+
     punchmap(imlogTdust, hdu_canvas, fileout=outputdir + 'imlogTdust.fits')
     punchmap(supimlogTdust,
              hdu_canvas,
@@ -429,6 +453,9 @@ def exec_imoptim(
     punchmap(sdoimlogTdust,
              hdu_canvas,
              fileout=outputdir + 'sdoimlogTdust.fits')
+    punchmap((sdoimlogTdust + supimlogTdust) / 2.,
+             hdu_canvas,
+             fileout=outputdir + 'serrimlogTdust.fits')
 
     punchmap(imq_dustexpo, hdu_canvas, fileout=outputdir + 'imq_dustexpo.fits')
     punchmap(supimq_dustexpo,
@@ -437,10 +464,16 @@ def exec_imoptim(
     punchmap(sdoimq_dustexpo,
              hdu_canvas,
              fileout=outputdir + 'sdoimq_dustexpo.fits')
+    punchmap((sdoimq_dustexpo + supimq_dustexpo) / 2.,
+             hdu_canvas,
+             fileout=outputdir + 'serrimq_dustexpo.fits')
 
     punchmap(imlogamax, hdu_canvas, fileout=outputdir + 'imlogamax.fits')
     punchmap(supimlogamax, hdu_canvas, fileout=outputdir + 'supimlogamax.fits')
     punchmap(sdoimlogamax, hdu_canvas, fileout=outputdir + 'sdoimlogamax.fits')
+    punchmap((sdoimlogamax + supimlogamax) / 2.,
+             hdu_canvas,
+             fileout=outputdir + 'serrimlogamax.fits')
 
     punchmap(imlogSigma_g, hdu_canvas, fileout=outputdir + 'imlogSigma_g.fits')
     punchmap(supimlogSigma_g,
@@ -449,5 +482,8 @@ def exec_imoptim(
     punchmap(sdoimlogSigma_g,
              hdu_canvas,
              fileout=outputdir + 'sdoimlogSigma_g.fits')
+    punchmap((sdoimlogSigma_g + supimlogSigma_g) / 2.,
+             hdu_canvas,
+             fileout=outputdir + 'serrimlogSigma_g.fits')
 
     punchmap(chi2map, hdu_canvas, fileout=outputdir + 'chi2map.fits')
