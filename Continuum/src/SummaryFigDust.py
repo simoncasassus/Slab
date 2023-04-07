@@ -144,35 +144,31 @@ def addimage(iplotpos,
         j1 = hdr_grey['NAXIS2']
 
         subim_grey = im_grey[:, :]
-        a0 = (i0-(hdr_grey['CRPIX1']-1))*hdr_grey['CDELT1']*3600.
-        a1 = (i1-(hdr_grey['CRPIX1']-1))*hdr_grey['CDELT1']*3600.
-        d0 = (j0-(hdr_grey['CRPIX2']-1))*hdr_grey['CDELT2']*3600.
-        d1 = (j1-(hdr_grey['CRPIX2']-1))*hdr_grey['CDELT2']*3600.
-        
-    
+        a0 = (i0 - (hdr_grey['CRPIX1'] - 1)) * hdr_grey['CDELT1'] * 3600.
+        a1 = (i1 - (hdr_grey['CRPIX1'] - 1)) * hdr_grey['CDELT1'] * 3600.
+        d0 = (j0 - (hdr_grey['CRPIX2'] - 1)) * hdr_grey['CDELT2'] * 3600.
+        d1 = (j1 - (hdr_grey['CRPIX2'] - 1)) * hdr_grey['CDELT2'] * 3600.
 
     if mask is None:
 
-        hdumask = fits.open(workdir+'intensitymask.fits')
+        hdumask = fits.open(workdir + 'intensitymask.fits')
         #mask = np.ones(subim_grey.shape)
-        intmask=hdumask[0].data
+        intmask = hdumask[0].data
         mask = np.where(intmask > 0)
         if errmask:
             hduerr = fits.open(filename_serr)
-            print("filename_serr",filename_serr)
-            print("scaleunits",scaleunits)
+            print("filename_serr", filename_serr)
+            print("scaleunits", scaleunits)
             im_err = hduerr[0].data * scaleunits
             hdr_err = hduerr[0].header
             subim_err = im_err[j0:j1, i0:i1]
             #im_snr = subim_grey / subim_err
-            print("errthresh4mask",errthresh4mask)
+            print("errthresh4mask", errthresh4mask)
             mask = (subim_err < errthresh4mask) & (intmask > 0)
             print("len(mask)", np.sum(mask))
             #print("max SNR", np.nanmax(im_snr))
             #print("min SNR", np.nanmin(im_snr))
 
-
-    
     if MedianvalRange:
         typicalvalue = np.median(subim_grey[mask])
         rms = np.std(subim_grey[mask])
@@ -221,11 +217,13 @@ def addimage(iplotpos,
         vmax=range2,
         interpolation='nearest')  #'nearest'  'bicubic'
 
-    ax.contour(
-        mask,levels=[0.5],
-        origin='lower',color='black',lw=10,
-        extent=[a0, a1, d0, d1],
-        interpolation='nearest')  #'nearest'  'bicubic'
+    ax.contour(mask,
+               levels=[0.5],
+               origin='lower',
+               color='black',
+               lw=10,
+               extent=[a0, a1, d0, d1],
+               interpolation='nearest')  #'nearest'  'bicubic'
 
     #plt.plot(0.,0.,marker='*',color='yellow',markersize=0.2,markeredgecolor='black')
     #plt.plot(0.,
@@ -287,24 +285,33 @@ def addimage(iplotpos,
         axcb.add_artist(e)
 
     if DoInterestingRegion:
-        from matplotlib.patches import Ellipse
+        #PA_to_HD147889 East of North -149.55224466034508
+        x0 = 0.67
+        y0 = 0.2
+        PA = (360. - 149.552) * np.pi / 180.
+        arrowlength = 0.45
+        dx = np.sin(PA) * arrowlength
+        dy = np.cos(PA) * arrowlength
+        print("x0",x0,"a1",a0)
+        ax.arrow(x0, y0, dx, dy, head_width=0.05, alpha=0.8)
+        ax.text(x0+dx-0.05, y0 + dy-0.05, 'HD147889', fontsize=10, ha='left')
 
-        #Bmax/2 0.0579669470623286; Bmin/2 0.038567442164739;
-        #PA-51.682370436407deg (South of East);
-
-        bmaj = 0.25
-        bmin = 0.25
-        bpa = 0.
-        e = Ellipse(xy=[-0.276, -0.378],
-                    width=bmin,
-                    height=bmaj,
-                    angle=-bpa,
-                    color='yellow',
-                    fill=False)
-        e.set_clip_box(axcb.bbox)
-        #e.set_facecolor('yellow')
-        #e.set_alpha(0.5)
-        axcb.add_artist(e)
+        #from matplotlib.patches import Ellipse
+        ##Bmax/2 0.0579669470623286; Bmin/2 0.038567442164739;
+        ##PA-51.682370436407deg (South of East);
+        #bmaj = 0.25
+        #bmin = 0.25
+        #bpa = 0.
+        #e = Ellipse(xy=[-0.276, -0.378],
+        #            width=bmin,
+        #            height=bmaj,
+        #            angle=-bpa,
+        #            color='yellow',
+        #            fill=False)
+        #e.set_clip_box(axcb.bbox)
+        ##e.set_facecolor('yellow')
+        ##e.set_alpha(0.5)
+        #axcb.add_artist(e)
 
     return clevs, clabels, mask
 
@@ -315,6 +322,7 @@ def exec_summary(workdir,
                  DoCB=True,
                  DoAxesLabels=True,
                  WithAxes=True,
+                 DoInterestingRegion=False,
                  errthresh4mask=0.1,
                  WithErrors=True,
                  Zoom=False,
@@ -360,15 +368,18 @@ def exec_summary(workdir,
 
     #Range = False
     #Range = [1., 5.]
+    DoInterestingRegion0 = False
 
     for ipara, apara in enumerate(domain):
         iplotpos += 1
         parname = apara[0]
         if 'Tdust' in parname:
-            mask=None
+            mask = None
             rootname = 'imlogTdust.fits'
             atitle = r'$\log({\rm T}_{\rm d}/{\rm K})$'
             cmap = 'hot'
+            if DoInterestingRegion:
+                DoInterestingRegion0 = True
         elif 'amax' in parname:
             rootname = 'imlogamax.fits'
             atitle = r'$\log({\rm a}_{\rm max}/{\rm cm})$'
@@ -385,7 +396,7 @@ def exec_summary(workdir,
             #cmap = 'binary'
         else:
             sys.exit("no such parameter", parname)
-        
+
         filename_grey = workdir + rootname
         filename_sup = workdir + 'sup' + rootname
         filename_sdo = workdir + 'sdo' + rootname
@@ -403,7 +414,7 @@ def exec_summary(workdir,
                 VisibleXaxis = False
             if iplotpos == 1:
                 VisibleYaxis = True
-                
+
         (clevs, clabels, mask) = addimage(
             iplotpos,
             label,
@@ -427,18 +438,18 @@ def exec_summary(workdir,
             # Range=Range,
             Zoom=Zoom,
             side=side,
-            DoInterestingRegion=False,
+            DoInterestingRegion=DoInterestingRegion0,
             cbunits=cbunits,
             scaleunits=1.,
             workdir=workdir,
             cbfmt='%.2f')
-
+        DoInterestingRegion0 = False
         if WithErrors:
             ierrplotpos = iplotpos + nplotsx
             atitle = atitle + ' error'
             label = labels[ierrplotpos - 1]
             filename_grey = filename_serr
-            cmap='binary'
+            cmap = 'binary'
             #cmap='Greys'
             (clevs, clabels, mask) = addimage(
                 ierrplotpos,
