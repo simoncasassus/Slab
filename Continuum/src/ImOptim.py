@@ -133,6 +133,7 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
 
 def loaddata(files_images,
              files_specindex=None,
+             file_fillfactor=None,
              files_errspecindex=None,
              zoomfactor=8,
              outputdir=''):
@@ -172,10 +173,15 @@ def loaddata(files_images,
             mfreq_errspecindexhdus.append(hdu)
 
         print(len(mfreq_specindexhdus))
-        return hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams
+        retvals=[ hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams]
     else:
-        return hdu_canvas, mfreq_imhdus, omega_beams
+        retvals=[ hdu_canvas, mfreq_imhdus, omega_beams]
 
+    if file_fillfactor is not None:
+        im_f = fits.open(file_fillfactor)[0].data
+        retvals.append(im_f)
+        
+    return retvals
 
 def exec_imoptim(
         OptimM,
@@ -185,6 +191,7 @@ def exec_imoptim(
         ZMerit,
         hdu_canvas,
         mfreq_imhdus,
+        im_fillfactor=None,
         mfreq_specindexhdus=None,
         mfreq_errspecindexhdus=None,
         n_cores_map=4,
