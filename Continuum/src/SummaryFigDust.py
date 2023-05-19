@@ -47,36 +47,37 @@ def colorbar(Mappable, Orientation='horizontal', cbfmt="%.1e"):
 #
 
 
-def addimage(iplotpos,
-             label,
-             atitle,
-             filename_grey,
-             filename_contours,
-             mask=None,
-             errmask=False,
-             errthresh4mask=0.1,
-             filename_serr=None,
-             VisibleXaxis=False,
-             VisibleYaxis=True,
-             DoBeamEllipse=False,
-             DoGreyCont=False,
-             vsyst=0.,
-             nplotsx=2,
-             nplotsy=2,
-             Range=False,
-             SymmetricRange=False,
-             MedianvalRange=False,
-             DoCB=True,
-             DoAxesLabels=True,
-             cmap='RdBu_r',
-             MedRms=True,
-             Zoom=False,
-             side=1.5,
-             scaleunits=1.,
-             DoInterestingRegion=False,
-             cbunits='Jy/beam',
-             workdir='',
-             cbfmt='%.2f'):
+def addimage(
+        iplotpos,
+        label,
+        atitle,
+        filename_grey,
+        filename_contours,
+        #mask=None,
+        errmask=None,
+        #errthresh4mask=0.1,
+        filename_serr=None,
+        VisibleXaxis=False,
+        VisibleYaxis=True,
+        DoBeamEllipse=False,
+        DoGreyCont=False,
+        vsyst=0.,
+        nplotsx=2,
+        nplotsy=2,
+        Range=False,
+        SymmetricRange=False,
+        MedianvalRange=False,
+        DoCB=True,
+        DoAxesLabels=True,
+        cmap='RdBu_r',
+        MedRms=True,
+        Zoom=False,
+        side=1.5,
+        scaleunits=1.,
+        DoInterestingRegion=False,
+        cbunits='Jy/beam',
+        workdir='',
+        cbfmt='%.2f'):
 
     print("nplotsx ", nplotsx, iplotpos)
     ax = plt.subplot(nplotsy, nplotsx, iplotpos)
@@ -149,25 +150,15 @@ def addimage(iplotpos,
         d0 = (j0 - (hdr_grey['CRPIX2'] - 1)) * hdr_grey['CDELT2'] * 3600.
         d1 = (j1 - (hdr_grey['CRPIX2'] - 1)) * hdr_grey['CDELT2'] * 3600.
 
-    if mask is None:
-
-        hdumask = fits.open(workdir + 'intensitymask.fits')
-        #mask = np.ones(subim_grey.shape)
-        intmask = hdumask[0].data
-        mask = np.where(intmask > 0)
-        if errmask:
-            hduerr = fits.open(filename_serr)
-            print("filename_serr", filename_serr)
-            print("scaleunits", scaleunits)
-            im_err = hduerr[0].data * scaleunits
-            hdr_err = hduerr[0].header
-            subim_err = im_err[j0:j1, i0:i1]
-            #im_snr = subim_grey / subim_err
-            print("errthresh4mask", errthresh4mask)
-            mask = (subim_err < errthresh4mask) & (intmask > 0)
-            print("len(mask)", np.sum(mask))
-            #print("max SNR", np.nanmax(im_snr))
-            #print("min SNR", np.nanmin(im_snr))
+    print("workdir for intmask", workdir)
+    hdumask = fits.open(workdir + 'intensitymask.fits')
+    #mask = np.ones(subim_grey.shape)
+    intmask = hdumask[0].data
+    subintmask = intmask[j0:j1, i0:i1]
+    mask = (subintmask > 0)
+    if errmask is not None:
+        suberrmask = errmask[j0:j1, i0:i1]
+        mask = ((suberrmask * subintmask) > 0)
 
     if MedianvalRange:
         typicalvalue = np.median(subim_grey[mask])
@@ -292,9 +283,13 @@ def addimage(iplotpos,
         arrowlength = 0.45
         dx = np.sin(PA) * arrowlength
         dy = np.cos(PA) * arrowlength
-        print("x0",x0,"a1",a0)
+        print("x0", x0, "a1", a0)
         ax.arrow(x0, y0, dx, dy, head_width=0.05, alpha=0.8)
-        ax.text(x0+dx-0.05, y0 + dy-0.05, 'HD147889', fontsize=10, ha='left')
+        ax.text(x0 + dx - 0.05,
+                y0 + dy - 0.05,
+                'HD147889',
+                fontsize=10,
+                ha='left')
 
         #from matplotlib.patches import Ellipse
         ##Bmax/2 0.0579669470623286; Bmin/2 0.038567442164739;
@@ -313,7 +308,7 @@ def addimage(iplotpos,
         ##e.set_alpha(0.5)
         #axcb.add_artist(e)
 
-    return clevs, clabels, mask
+    return clevs, clabels
 
 
 def exec_summary(workdir,
@@ -323,13 +318,13 @@ def exec_summary(workdir,
                  DoAxesLabels=True,
                  WithAxes=True,
                  DoInterestingRegion=False,
-                 errthresh4mask=0.1,
+                 errthreshs=None,
                  WithErrors=True,
                  Zoom=False,
                  side=1.2):
     """
-    errthresh4mask=0.1, defines the mask on the first param in domain 
-    
+    errthreshs = [['log(Tdust)', 0.2], ['log(amax)', 1.], ['log(Sigma_g)', 0.3]]
+    defines the mask with thresholds for parameters in that list
     """
     print("workdir:", workdir)
     #matplotlib.rc('text', usetex=True)
@@ -369,6 +364,39 @@ def exec_summary(workdir,
     #Range = False
     #Range = [1., 5.]
     DoInterestingRegion0 = False
+
+    errmask = None
+    
+    
+    if errthreshs is not None:
+        for apara in errthreshs:
+            parname = apara[0]
+            errthresh4mask = apara[1]
+            if 'Tdust' in parname:
+                rootname = 'imlogTdust.fits'
+            elif 'amax' in parname:
+                rootname = 'imlogamax.fits'
+            elif 'expo' in parname:
+                rootname = 'imq_dustexpo.fits'
+            elif 'Sigma' in parname:
+                rootname = 'imlogSigma_g.fits'
+            else:
+                sys.exit("no such parameter", parname)
+
+            filename_grey = workdir + rootname
+            filename_sup = workdir + 'sup' + rootname
+            filename_sdo = workdir + 'sdo' + rootname
+            filename_serr = workdir + 'serr' + rootname
+
+            hduerr = fits.open(filename_serr)
+            aim_err = hduerr[0].data
+            hdr_err = hduerr[0].header
+            amask = np.zeros(aim_err.shape, dtype='int')
+            amask[(aim_err < errthresh4mask)] = 1
+            if errmask is None:
+                errmask = amask
+            else:
+                errmask = errmask * amask
 
     for ipara, apara in enumerate(domain):
         iplotpos += 1
@@ -415,14 +443,12 @@ def exec_summary(workdir,
             if iplotpos == 1:
                 VisibleYaxis = True
 
-        (clevs, clabels, mask) = addimage(
+        (clevs, clabels) = addimage(
             iplotpos,
             label,
             atitle,
             filename_grey,
-            mask=mask,
-            errthresh4mask=errthresh4mask,
-            errmask=True,
+            errmask=errmask,
             filename_serr=filename_serr,
             filename_contours=filename_contours,
             VisibleXaxis=VisibleXaxis,
@@ -451,12 +477,13 @@ def exec_summary(workdir,
             filename_grey = filename_serr
             cmap = 'binary'
             #cmap='Greys'
-            (clevs, clabels, mask) = addimage(
+            (clevs, clabels) = addimage(
                 ierrplotpos,
                 label,
                 atitle,
                 filename_grey,
-                mask=mask,
+                errmask=errmask,
+                workdir=workdir,
                 filename_contours=filename_contours,
                 VisibleXaxis=True,
                 VisibleYaxis=VisibleYaxis,

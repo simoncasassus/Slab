@@ -173,15 +173,23 @@ def loaddata(files_images,
             mfreq_errspecindexhdus.append(hdu)
 
         print(len(mfreq_specindexhdus))
-        retvals=[ hdu_canvas, mfreq_imhdus, mfreq_specindexhdus, mfreq_errspecindexhdus, omega_beams]
+        retvals = [
+            hdu_canvas, mfreq_imhdus, mfreq_specindexhdus,
+            mfreq_errspecindexhdus, omega_beams
+        ]
     else:
-        retvals=[ hdu_canvas, mfreq_imhdus, omega_beams]
+        retvals = [hdu_canvas, mfreq_imhdus, omega_beams]
 
     if file_fillfactor is not None:
-        im_f = fits.open(file_fillfactor)[0].data
+        rrs, hdu, pixscale, omega_beam = load_imagfile(file_fillfactor,
+                                                       zoomfactor=zoomfactor,
+                                                       outputdir=outputdir)
+        im_f = hdu[0].data
+
         retvals.append(im_f)
-        
+
     return retvals
+
 
 def exec_imoptim(
         OptimM,
@@ -203,6 +211,11 @@ def exec_imoptim(
         shift_fluxcal=None,
         SingleLOS=None,
         intraband_accuracy=0.008):
+    """
+    Two options to set image masks:
+    1- with a filling factor image passed as im_fillfactor
+    2- with an intensity mask, setup with the 2 elt array intensity_threshold. [0] is the frequency index, [1] is the threshold in units of the noise
+    """
 
     if SingleLOS is None:
         ZSetup.Verbose = False
@@ -250,7 +263,8 @@ def exec_imoptim(
     nx, ny = im_canvas.shape
     rmsnoises /= ZData.omega_beam
     rmsnoises *= 1E-6
-
+    #print("nx ",nx,"ny",ny) DEV
+    #print(im_fillfactor.shape) DEV
     hdr_canvas = hdu_canvas[0].header
     ivec = np.arange(0, nx)
     jvec = np.arange(0, ny)
@@ -293,6 +307,7 @@ def exec_imoptim(
             Inus = []
             specindexes = []
             recordfreqs = []
+            fillfactor = None
             for ifreq in range(nfreqs):
                 aim = mfreq_imhdus[ifreq][0].data
                 ahdr = mfreq_imhdus[ifreq][0].header
@@ -301,19 +316,27 @@ def exec_imoptim(
                 Inus.append(aInu)
                 recordfreqs.append(aFREQ)
 
-            recordfreqs = np.array(recordfreqs)
-
-            ifreq_thresh = intensity_threshold[0]
-            nthresh = intensity_threshold[1]
-            if (Inus[ifreq_thresh] < nthresh * rmsnoises[ifreq_thresh]):
-                if SingleLOS is not None:
-                    print("below noise threshold, intensity is",
-                          Inus[ifreq_thresh], " noise is: ", rmsnoises[0])
-                continue
-
-            intensitymask[ix, iy] = 1
-
             Inus = np.array(Inus)
+
+            recordfreqs = np.array(recordfreqs)
+            if im_fillfactor is not None:
+                fill_factor = im_fillfactor[ix, iy]
+                if ((fill_factor == 0.) or (fill_factor >= 1.)):
+                    if SingleLOS is not None:
+                        print("fill_factor is ", fill_factor)
+                    continue
+                Inus /= fill_factor
+                intensitymask[ix, iy] = 1
+            else:
+                ifreq_thresh = intensity_threshold[0]
+                nthresh = intensity_threshold[1]
+                if (Inus[ifreq_thresh] < nthresh * rmsnoises[ifreq_thresh]):
+                    if SingleLOS is not None:
+                        print("below noise threshold, intensity is",
+                              Inus[ifreq_thresh], " noise is: ", rmsnoises[0])
+                    continue
+                intensitymask[ix, iy] = 1
+
             if shift_fluxcal is not None:
                 Inus *= fluxcal_factors
 
@@ -347,6 +370,7 @@ def exec_imoptim(
             AData = SEDOptim.Data()
             AData.copy(ZData)
             AData.Inus = Inus
+            AData.fillfactor = fillfactor
             if rmsnoises is not None:
                 #if shift_fluxcal is not None:
                 AData.sInus = np.sqrt(rmsnoises**2 +
