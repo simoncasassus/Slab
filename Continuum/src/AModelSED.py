@@ -38,7 +38,7 @@ def Plot_Opct(Opct, outputdir):
 
     fileout = 'fig_optconstants.pdf'
     plt.savefig(outputdir + fileout, bbox_inches='tight')
-
+    plt.close()
 
 def Plot_Inu(nus,
              Inus,

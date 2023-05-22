@@ -260,11 +260,10 @@ def exec_imoptim(
             modelspecindexs.append(amodelspecindex)
 
     tasks = []
-    nx, ny = im_canvas.shape
+    ny, nx = im_canvas.shape
     rmsnoises /= ZData.omega_beam
     rmsnoises *= 1E-6
-    #print("nx ",nx,"ny",ny) DEV
-    #print(im_fillfactor.shape) DEV
+    #print("nx ",nx,"ny",ny) # DEV
     hdr_canvas = hdu_canvas[0].header
     ivec = np.arange(0, nx)
     jvec = np.arange(0, ny)
@@ -298,12 +297,9 @@ def exec_imoptim(
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
                 print("ix ", ix, " iy ", iy)
-                print("alpha :", xxs[ix, iy], "delta:", yys[ix, iy], "radius",
-                      rrs[ix, iy])
-                #print("alpha DEV :", xxs[iy, ix], "delta:", yys[iy, ix], "radius",
-                #      rrs[iy, ix])
-                print("1off alpha  :", xxs[ix, iy], "delta:", yys[ix, iy],
-                      "radius", rrs[ix + 1, iy])
+                print("alpha :", xxs[iy, ix], "delta:", yys[iy, ix], "radius",
+                      rrs[iy, ix])
+
             Inus = []
             specindexes = []
             recordfreqs = []
@@ -312,7 +308,9 @@ def exec_imoptim(
                 aim = mfreq_imhdus[ifreq][0].data
                 ahdr = mfreq_imhdus[ifreq][0].header
                 aFREQ = int(ahdr['RESTFRQ'] / 1E9)
-                aInu = aim[ix, iy] / omega_beams[ifreq]
+                #print("aim[ix, iy]", aim[iy, ix])
+                #Vtools.View(aim)
+                aInu = aim[iy, ix] / omega_beams[ifreq]
                 Inus.append(aInu)
                 recordfreqs.append(aFREQ)
 
@@ -320,13 +318,17 @@ def exec_imoptim(
 
             recordfreqs = np.array(recordfreqs)
             if im_fillfactor is not None:
-                fill_factor = im_fillfactor[ix, iy]
+                #fill_factor = im_fillfactor[ix, iy]
+                fill_factor = im_fillfactor[iy, ix]
+                #print("fill_factor", fill_factor)
+                #Vtools.View(im_fillfactor)
                 if ((fill_factor == 0.) or (fill_factor >= 1.)):
                     if SingleLOS is not None:
                         print("fill_factor is ", fill_factor)
                     continue
+                #print("fill_factor", fill_factor)
                 Inus /= fill_factor
-                intensitymask[ix, iy] = 1
+                intensitymask[iy, ix] = 1
             else:
                 ifreq_thresh = intensity_threshold[0]
                 nthresh = intensity_threshold[1]
@@ -335,7 +337,7 @@ def exec_imoptim(
                         print("below noise threshold, intensity is",
                               Inus[ifreq_thresh], " noise is: ", rmsnoises[0])
                     continue
-                intensitymask[ix, iy] = 1
+                intensitymask[iy, ix] = 1
 
             if shift_fluxcal is not None:
                 Inus *= fluxcal_factors
@@ -357,11 +359,11 @@ def exec_imoptim(
                     Inu1s.append(Inus[inu1])
                     nu1s.append(anu1)
                     nu2s.append(anu2)
-                    aspecindex = aspecindexmap[ix, iy]
+                    aspecindex = aspecindexmap[iy, ix]
                     specindexes.append(aspecindex)
                     aerrspecindexmap = mfreq_errspecindexhdus[ispecindex][
                         0].data
-                    aerrspecindex = aerrspecindexmap[ix, iy]
+                    aerrspecindex = aerrspecindexmap[iy, ix]
                     errspecindexes.append(aerrspecindex)
 
                 nu1s = np.array(nu1s)
@@ -421,44 +423,44 @@ def exec_imoptim(
         modelalphas = alos[5]
         achi2 = alos[6]
 
-        chi2map[ix, iy] = achi2
+        chi2map[iy, ix] = achi2
 
         for ifreq in range(nfreqs):
-            modelimages[ifreq][ix, iy] = modelInus[ifreq] * ZData.omega_beam
+            modelimages[ifreq][iy, ix] = modelInus[ifreq] * ZData.omega_beam
 
         if ZMerit.with_specindexdata:
             for ispecindex in range(nspecindexs):
-                modelspecindexs[ispecindex][ix, iy] = modelalphas[ispecindex]
+                modelspecindexs[ispecindex][iy, ix] = modelalphas[ispecindex]
 
         for iparam, aname in enumerate(names):
             if 'Tdust' in aname:
                 if OptimM.MCMCresult_UseMedian:
-                    imlogTdust[ix, iy] = mcmc_results[iparam][0]
+                    imlogTdust[iy, ix] = mcmc_results[iparam][0]
                 else:
-                    imlogTdust[ix, iy] = bestparams[iparam]
-                supimlogTdust[ix, iy] = mcmc_results[iparam][1]
-                sdoimlogTdust[ix, iy] = mcmc_results[iparam][2]
+                    imlogTdust[iy, ix] = bestparams[iparam]
+                supimlogTdust[iy, ix] = mcmc_results[iparam][1]
+                sdoimlogTdust[iy, ix] = mcmc_results[iparam][2]
             if 'dustexpo' in aname:
                 if OptimM.MCMCresult_UseMedian:
-                    imq_dustexpo[ix, iy] = mcmc_results[iparam][0]
+                    imq_dustexpo[iy, ix] = mcmc_results[iparam][0]
                 else:
-                    imq_dustexpo[ix, iy] = bestparams[iparam]
-                supimq_dustexpo[ix, iy] = mcmc_results[iparam][1]
-                sdoimq_dustexpo[ix, iy] = mcmc_results[iparam][2]
+                    imq_dustexpo[iy, ix] = bestparams[iparam]
+                supimq_dustexpo[iy, ix] = mcmc_results[iparam][1]
+                sdoimq_dustexpo[iy, ix] = mcmc_results[iparam][2]
             if 'amax' in aname:
                 if OptimM.MCMCresult_UseMedian:
-                    imlogamax[ix, iy] = mcmc_results[iparam][0]
+                    imlogamax[iy, ix] = mcmc_results[iparam][0]
                 else:
-                    imlogamax[ix, iy] = bestparams[iparam]
-                supimlogamax[ix, iy] = mcmc_results[iparam][1]
-                sdoimlogamax[ix, iy] = mcmc_results[iparam][2]
+                    imlogamax[iy, ix] = bestparams[iparam]
+                supimlogamax[iy, ix] = mcmc_results[iparam][1]
+                sdoimlogamax[iy, ix] = mcmc_results[iparam][2]
             if 'Sigma_g' in aname:
                 if OptimM.MCMCresult_UseMedian:
-                    imlogSigma_g[ix, iy] = mcmc_results[iparam][0]
+                    imlogSigma_g[iy, ix] = mcmc_results[iparam][0]
                 else:
-                    imlogSigma_g[ix, iy] = bestparams[iparam]
-                supimlogSigma_g[ix, iy] = mcmc_results[iparam][1]
-                sdoimlogSigma_g[ix, iy] = mcmc_results[iparam][2]
+                    imlogSigma_g[iy, ix] = bestparams[iparam]
+                supimlogSigma_g[iy, ix] = mcmc_results[iparam][1]
+                sdoimlogSigma_g[iy, ix] = mcmc_results[iparam][2]
 
     for ifreq in range(nfreqs):
         datafile = os.path.basename(files_images[ifreq])
