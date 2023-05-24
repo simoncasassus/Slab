@@ -74,6 +74,8 @@ def addimage(
         Zoom=False,
         side=1.5,
         scaleunits=1.,
+        LinearNotLog=False,
+        ErrLinearNotLog=None,
         DoInterestingRegion=False,
         cbunits='Jy/beam',
         workdir='',
@@ -149,6 +151,12 @@ def addimage(
         a1 = (i1 - (hdr_grey['CRPIX1'] - 1)) * hdr_grey['CDELT1'] * 3600.
         d0 = (j0 - (hdr_grey['CRPIX2'] - 1)) * hdr_grey['CDELT2'] * 3600.
         d1 = (j1 - (hdr_grey['CRPIX2'] - 1)) * hdr_grey['CDELT2'] * 3600.
+
+    if LinearNotLog & (ErrLinearNotLog is None):
+        subim_grey = 10**(subim_grey)
+    elif ErrLinearNotLog is not None:
+        linear_expectval_subim = ErrLinearNotLog
+        subim_grey = np.log(10) * linear_expectval_subim * subim_grey
 
     print("workdir for intmask", workdir)
     hdumask = fits.open(workdir + 'intensitymask.fits')
@@ -308,7 +316,7 @@ def addimage(
         ##e.set_alpha(0.5)
         #axcb.add_artist(e)
 
-    return clevs, clabels
+    return clevs, clabels, subim_grey
 
 
 def exec_summary(workdir,
@@ -318,6 +326,7 @@ def exec_summary(workdir,
                  DoAxesLabels=True,
                  WithAxes=True,
                  DoInterestingRegion=False,
+                 LinearNotLog=False,
                  errthreshs=None,
                  WithErrors=True,
                  Zoom=False,
@@ -398,28 +407,41 @@ def exec_summary(workdir,
             else:
                 errmask = errmask * amask
 
+    ThisLinearNotLog=LinearNotLog
     for ipara, apara in enumerate(domain):
         iplotpos += 1
         parname = apara[0]
         if 'Tdust' in parname:
             mask = None
             rootname = 'imlogTdust.fits'
-            atitle = r'$\log({\rm T}_{\rm d}/{\rm K})$'
+            if ThisLinearNotLog:
+                atitle = r'${\rm T}_{\rm d}/{\rm K}$'
+            else:
+                atitle = r'$\log({\rm T}_{\rm d}/{\rm K})$'
             cmap = 'hot'
             if DoInterestingRegion:
                 DoInterestingRegion0 = True
         elif 'amax' in parname:
+            ThisLinearNotLog=False
             rootname = 'imlogamax.fits'
-            atitle = r'$\log({\rm a}_{\rm max}/{\rm cm})$'
+            if ThisLinearNotLog:
+                atitle = r'${\rm a}_{\rm max}/{\rm cm}$'
+            else:
+                atitle = r'$\log({\rm a}_{\rm max}/{\rm cm})$'
             #cmap = 'jet'
             cmap = 'Greens'
         elif 'expo' in parname:
+            ThisLinearNotLog=False
             rootname = 'imq_dustexpo.fits'
             atitle = r'$q$'
             cmap = 'jet'
         elif 'Sigma' in parname:
+            ThisLinearNotLog=False
             rootname = 'imlogSigma_g.fits'
-            atitle = r'$\log({\Sigma}_{\rm g}/{\rm g\,cm}^{-2})$'
+            if ThisLinearNotLog:
+                atitle = r'${\Sigma}_{\rm g}/{\rm g\,cm}^{-2}$'
+            else:
+                atitle = r'$\log({\Sigma}_{\rm g}/{\rm g\,cm}^{-2})$'
             cmap = 'Blues'
             #cmap = 'binary'
         else:
@@ -443,7 +465,7 @@ def exec_summary(workdir,
             if iplotpos == 1:
                 VisibleYaxis = True
 
-        (clevs, clabels) = addimage(
+        (clevs, clabels, subim_grey) = addimage(
             iplotpos,
             label,
             atitle,
@@ -468,6 +490,7 @@ def exec_summary(workdir,
             cbunits=cbunits,
             scaleunits=1.,
             workdir=workdir,
+            LinearNotLog=ThisLinearNotLog,
             cbfmt='%.2f')
         DoInterestingRegion0 = False
         if WithErrors:
@@ -477,7 +500,12 @@ def exec_summary(workdir,
             filename_grey = filename_serr
             cmap = 'binary'
             #cmap='Greys'
-            (clevs, clabels) = addimage(
+            if ThisLinearNotLog:
+                ThisErrLinearNotLog=subim_grey
+            else:
+                ThisErrLinearNotLog=None
+                
+            (clevs, clabels, errsubim_grey) = addimage(
                 ierrplotpos,
                 label,
                 atitle,
@@ -499,6 +527,8 @@ def exec_summary(workdir,
                 Zoom=Zoom,
                 #Range=clevs,
                 side=side,
+                LinearNotLog=ThisLinearNotLog,
+                ErrLinearNotLog=ThisErrLinearNotLog,
                 DoInterestingRegion=False,
                 cbunits=cbunits,
                 cbfmt='%.2f')
