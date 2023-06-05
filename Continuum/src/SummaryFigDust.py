@@ -81,7 +81,6 @@ def addimage(
         workdir='',
         cbfmt='%.2f'):
 
-    print("nplotsx ", nplotsx, iplotpos)
     ax = plt.subplot(nplotsy, nplotsx, iplotpos)
     # ax=axes[iplotpos]
 
@@ -158,23 +157,16 @@ def addimage(
         linear_expectval_subim = ErrLinearNotLog
         subim_grey = np.log(10) * linear_expectval_subim * subim_grey
 
-    print("workdir for intmask", workdir)
     hdumask = fits.open(workdir + 'intensitymask.fits')
     #mask = np.ones(subim_grey.shape)
     intmask = hdumask[0].data
     subintmask = intmask[j0:j1, i0:i1]
     mask = (subintmask > 0)
     
-    print("mask",mask)
-    print("mask.shape",mask.shape,len(mask))
-    print("sum ",np.sum(mask))
     if errmask is not None:
 
-        #from PyVtools import Vtools
         suberrmask = errmask[j0:j1, i0:i1]
-        #Vtools.View(suberrmask)
         mask = ((suberrmask * subintmask) > 0)
-        print("errmask product",np.sum(mask))
 
     if MedianvalRange:
         typicalvalue = np.median(subim_grey[mask])
@@ -206,9 +198,9 @@ def addimage(
     if ('sigma' in filename_grey):
         cmap = 'magma_r'
 
-    print("max:", np.max(subim_grey))
-    print("min:", np.min(subim_grey))
-    print("range1", range1, "range2", range2)
+    #print("max:", np.max(subim_grey))
+    #print("min:", np.min(subim_grey))
+    #print("range1", range1, "range2", range2)
     if (np.isnan(subim_grey).any()):
         print("NaNs in subim_grey")
     #subim_grey = np.nan_to_num(subim_grey)
@@ -227,10 +219,10 @@ def addimage(
     ax.contour(mask,
                levels=[0.5],
                origin='lower',
-               color='black',
-               lw=10,
-               extent=[a0, a1, d0, d1],
-               interpolation='nearest')  #'nearest'  'bicubic'
+               #color='black',
+               #lw=10,
+               extent=[a0, a1, d0, d1]) #,
+               #interpolation='nearest')  #'nearest'  'bicubic'
 
     #plt.plot(0.,0.,marker='*',color='yellow',markersize=0.2,markeredgecolor='black')
     #plt.plot(0.,
@@ -268,7 +260,7 @@ def addimage(
     if (DoCB):
         cb = colorbar(theimage, cbfmt=cbfmt)
         cb.ax.tick_params(labelsize='small')
-        print("CB label", cbunits)
+        #print("CB label", cbunits)
         cb.set_label(cbunits)
 
     if DoBeamEllipse:
@@ -410,8 +402,8 @@ def exec_summary(workdir,
             aim_err = hduerr[0].data
             hdr_err = hduerr[0].header
             amask = np.zeros(aim_err.shape, dtype='int')
-            amask[(aim_err < errthresh4mask)] = 1
-            Vtools.View(amask)
+            #amask = np.zeros(aim_err.shape)
+            amask[(aim_err > 0) & (aim_err < errthresh4mask)] = 1
             if errmask is None:
                 errmask = amask
             else:
