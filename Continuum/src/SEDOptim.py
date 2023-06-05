@@ -45,6 +45,7 @@ def summary_SEDs(nvar,
                  mcmc_bestparams=None,
                  mcmc_results_0=None,
                  chains=None,
+                 label4SED=None,
                  WithSEDchains=False,
                  nchains_4plots=1000,
                  PlotSpecIndexArrows=False,
@@ -123,8 +124,8 @@ def summary_SEDs(nvar,
                 latexname = r'$\log\left(T_{\rm d}/{\rm K}\right)$'
                 #latexname = ''
             if name == 'Sigma_g':
-                latexname = r'$\log\left(\frac{\Sigma_g}{{\rm g/cm}^2}\right)$'
-                latexname = r'$\log\left(\Sigma_g/{\rm g/cm}^2\right)$'
+                latexname = r'$\log\left(\frac{\Sigma_{\rm g}}{{\rm g/cm}^2}\right)$'
+                latexname = r'$\log\left(\Sigma_{\rm g}/{\rm g/cm}^2\right)$'
                 #latexname = ''
             if name == 'amax':
                 latexname = r'$\log\left(\frac{a_{\rm max}}{{\rm cm}}\right)$'
@@ -319,6 +320,14 @@ def summary_SEDs(nvar,
     ax.yaxis.set_major_formatter(mticker.ScalarFormatter())
     #ax.yaxis.set_minor_formatter(mticker.ScalarFormatter())
     ax.ticklabel_format(style='plain', axis='y')
+    plt.title(label4SED,fontsize=10)
+    #xlabel=ax.get_xlim()[0]+0.005*(ax.get_xlim()[1]-ax.get_xlim()[0])
+    #ylabel=ax.get_ylim()[1]-0.25*(ax.get_ylim()[1]-ax.get_ylim()[0])
+    #if label4SED is None:
+    #    label=''
+    #else:
+    #    label=label4SED
+    #plt.text(xlabel, ylabel, label, ha='left', fontsize=10)
 
     #plt.ticklabel_format(axis='both',style='plain')
     #plt.grid()
@@ -527,6 +536,7 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
         np.save(ZSetup.outputdir + 'result_ml_errors.dat', errors_ml)
 
     if OptimM.SummaryPlots:
+            
         summary_SEDs(
             nvar,
             names,
@@ -538,11 +548,12 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
             mcmc_bestparams=OptimM.mcmc_bestparams,  #None
             mcmc_results_0=OptimM.mcmc_results_0,
             chains=None,
+            label=OptimM.label4SED,  # string
             trueparams=OptimM.trueparams,
             xscale=OptimM.summarySED_xaxisscale,
             yscale=OptimM.summarySED_yaxisscale,
             nchains_4plots=False,
-            filename='fig_bestfit_Powell.png',
+            filename='fig_bestfit_Powell'+OptimM.filename_tag+'.png',
             DoubleArrow=False)
 
     achi2 = retvals[0]
@@ -932,6 +943,8 @@ def exec_emcee(OptimM, ZSetup, ZData, ASED, ZMerit):
                      yscale=OptimM.summarySED_yaxisscale,
                      WithSEDchains=OptimM.summaryWithSEDchains,
                      nchains_4plots=nchains_4plots,
+                     label4SED=OptimM.label4SED,
+                     filename='fig_bestfit'+OptimM.filename_tag+'.png',
                      DoubleArrow=False)
 
     return [names, mcmc_results, bestparams, modelInus, modelalphas, achi2]
@@ -1113,6 +1126,8 @@ class OptimM():
             PrintChi2s=False,
             Report=True,
             SummaryPlots=True,
+            label4SED=None,  # string
+            filename_tag='',
             trueparams=False,  # string 
             domain=[],
             domain_CG=[],

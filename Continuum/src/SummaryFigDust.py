@@ -164,9 +164,17 @@ def addimage(
     intmask = hdumask[0].data
     subintmask = intmask[j0:j1, i0:i1]
     mask = (subintmask > 0)
+    
+    print("mask",mask)
+    print("mask.shape",mask.shape,len(mask))
+    print("sum ",np.sum(mask))
     if errmask is not None:
+
+        #from PyVtools import Vtools
         suberrmask = errmask[j0:j1, i0:i1]
+        #Vtools.View(suberrmask)
         mask = ((suberrmask * subintmask) > 0)
+        print("errmask product",np.sum(mask))
 
     if MedianvalRange:
         typicalvalue = np.median(subim_grey[mask])
@@ -376,6 +384,7 @@ def exec_summary(workdir,
 
     errmask = None
     
+    from PyVtools import Vtools
     
     if errthreshs is not None:
         for apara in errthreshs:
@@ -402,6 +411,7 @@ def exec_summary(workdir,
             hdr_err = hduerr[0].header
             amask = np.zeros(aim_err.shape, dtype='int')
             amask[(aim_err < errthresh4mask)] = 1
+            Vtools.View(amask)
             if errmask is None:
                 errmask = amask
             else:

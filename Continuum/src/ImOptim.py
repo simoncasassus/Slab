@@ -267,7 +267,7 @@ def exec_imoptim(
     hdr_canvas = hdu_canvas[0].header
     ivec = np.arange(0, nx)
     jvec = np.arange(0, ny)
-    jjs, iis = np.meshgrid(ivec, jvec)
+    iis, jjs = np.meshgrid(ivec, jvec)
     xxs = hdr_canvas['CDELT1'] * 3600. * (iis - (hdr_canvas['CRPIX1'] - 1))
     yys = hdr_canvas['CDELT2'] * 3600. * (jjs - (hdr_canvas['CRPIX2'] - 1))
     rrs = np.sqrt(xxs**2 + yys**2)
@@ -296,9 +296,29 @@ def exec_imoptim(
             if SingleLOS is not None:
                 if not ((ix == SingleLOS[0]) & (iy == SingleLOS[1])):
                     continue
-                print("ix ", ix, " iy ", iy)
-                print("alpha :", xxs[iy, ix], "delta:", yys[iy, ix], "radius",
-                      rrs[iy, ix])
+                #print("ix ", ix, " iy ", iy)
+                dalpha = xxs[iy, ix]
+                ddelta = yys[iy, ix]
+                OptimM.label4SED = r"$\Delta\alpha=%.2f~~\Delta\delta=%.2f$" % (
+                    dalpha, ddelta)
+                #OptimM.label4SED = r"$\Delta\alpha=%.2f$" % (
+                #    dalpha) + "\n" + r"$\Delta\delta=%.2f$" % (ddelta)
+                #print("alpha :", xxs[iy, ix], "delta:", yys[iy, ix], "radius",
+                #      rrs[iy, ix])
+                hdu_dum = deepcopy(hdu_canvas)
+                hdu_dum[0].data = xxs
+                hdu_dum.writeto(ZSetup.outputdir + 'xxs.fits', overwrite=True)
+                hdu_dum[0].data = yys
+                hdu_dum.writeto(ZSetup.outputdir + 'yys.fits', overwrite=True)
+                hdu_dum[0].data = im_canvas
+                hdu_dum.writeto(ZSetup.outputdir + 'im_canvas_dum.fits',
+                                overwrite=True)
+                hdu_dum.close()
+                #print("im_canvas.shape",im_canvas.shape)
+                #print("xxs.shape",xxs.shape)
+                #print("yys.shape",yys.shape)
+                #print("test values", im_canvas[40,37])
+                #sys.exit()
 
             Inus = []
             specindexes = []
@@ -308,7 +328,7 @@ def exec_imoptim(
                 aim = mfreq_imhdus[ifreq][0].data
                 ahdr = mfreq_imhdus[ifreq][0].header
                 aFREQ = int(ahdr['RESTFRQ'] / 1E9)
-                #print("aim[ix, iy]", aim[iy, ix])
+                #print("aim[iy, ix]", aim[iy, ix])
                 #Vtools.View(aim)
                 aInu = aim[iy, ix] / omega_beams[ifreq]
                 Inus.append(aInu)
@@ -318,7 +338,7 @@ def exec_imoptim(
 
             recordfreqs = np.array(recordfreqs)
             if im_fillfactor is not None:
-                #fill_factor = im_fillfactor[ix, iy]
+                #fill_factor = im_fillfactor[iy, ix]
                 fill_factor = im_fillfactor[iy, ix]
                 #print("fill_factor", fill_factor)
                 #Vtools.View(im_fillfactor)
