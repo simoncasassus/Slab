@@ -459,10 +459,12 @@ def run_scipy_optimize_minimize(x_free, names, bnds, ZSetup, ZData, ASED,
     best_lnlike = lnlike(result_ml, names, ZSetup, ZData, ASED, ASED4alphas,
                          ZMerit)
 
+    if OptimM.Report:
+        print("init chi2 xcheck   %e" % (-2. * init_lnlike2))
     retvals = ZMerit.calcul(ZSetup, ZData, ASED, ASED4alphas=ASED4alphas)
 
     if OptimM.Report:
-        print("best_chi2 %e" % (-2. * best_lnlike))
+        print("Powell best_chi2 %e" % (-2. * best_lnlike))
 
     if OptimM.Report:
         print("computing errors with Hessian")
@@ -548,7 +550,7 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
             mcmc_bestparams=OptimM.mcmc_bestparams,  #None
             mcmc_results_0=OptimM.mcmc_results_0,
             chains=None,
-            label=OptimM.label4SED,  # string
+            label4SED=OptimM.label4SED,
             trueparams=OptimM.trueparams,
             xscale=OptimM.summarySED_xaxisscale,
             yscale=OptimM.summarySED_yaxisscale,
@@ -562,6 +564,21 @@ def exec_ConjGrad(OptimM, ZSetup, ZData, ASED, ZMerit):
         modelalphas = retvals[2]
     else:
         modelalphas = []
+
+    if OptimM.Report:
+        ZSetup.filetag = 'powell_bestL_'
+        
+    achi2 = retvals[0]
+    modelInus = retvals[1]
+    if ZData.nus_alphas is not None:
+        modelalphas = retvals[2]
+    else:
+        modelalphas = []
+
+    #print("retvals",retvals)
+    if OptimM.Report:
+        print("best powell chi2 = %e" % (achi2))
+
 
     #return names, result_ml
     return [names, result_ml, modelInus, modelalphas, achi2]
