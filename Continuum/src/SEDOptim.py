@@ -53,6 +53,7 @@ def summary_SEDs(nvar,
                  xscale='log',
                  yscale='log',
                  trueparams=False,
+                 linearTd=True,
                  filename='fig_bestfit.png',
                  DoubleArrow=True):
 
@@ -122,6 +123,11 @@ def summary_SEDs(nvar,
             if name == 'Tdust':
                 latexname = r'$\log\left(\frac{T_{\rm d}}{{\rm K}}\right)$'
                 latexname = r'$\log\left(T_{\rm d}/{\rm K}\right)$'
+                if linearTd:
+                    latexname = r'$T_{\rm d}$'
+                    reportvalue = 10**reportvalue
+                    uperror = np.log(10) * reportvalue * uperror
+                    downerror = np.log(10) * reportvalue * downerror
                 #latexname = ''
             if name == 'Sigma_g':
                 latexname = r'$\log\left(\frac{\Sigma_{\rm g}}{{\rm g/cm}^2}\right)$'
@@ -133,10 +139,16 @@ def summary_SEDs(nvar,
                 latexname = r'$\log\left(a_{\rm max}/{\rm mm}\right)$'
                 reportvalue = 1. + reportvalue
 
-            Ztitle_mcmc = Ztitle_mcmc + latexname + r'= %.2f$^{+%.2f}_{-%.2f}$  ' % (
-                reportvalue, uperror, downerror)
-
-            if name != 'Sigma_g':
+            if linearTd and (name == 'Tdust'):
+                Ztitle_mcmc = Ztitle_mcmc + latexname + r'= %.1f$^{+%.1f}_{-%.1f}$  ' % (
+                    reportvalue, uperror, downerror)
+            else:
+                Ztitle_mcmc = Ztitle_mcmc + latexname + r'= %.2f$^{+%.2f}_{-%.2f}$  ' % (
+                    reportvalue, uperror, downerror)
+                
+            if linearTd and (name == 'Tdust'):
+                Ztitle_mcmc += r'${\rm K}$'
+        if name != 'Sigma_g':
                 Ztitle_mcmc += '\n'
 
         if UseCGBestFit:

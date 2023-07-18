@@ -162,7 +162,7 @@ def addimage(
     intmask = hdumask[0].data
     subintmask = intmask[j0:j1, i0:i1]
     mask = (subintmask > 0)
-    
+
     if errmask is not None:
 
         suberrmask = errmask[j0:j1, i0:i1]
@@ -216,13 +216,14 @@ def addimage(
         vmax=range2,
         interpolation='nearest')  #'nearest'  'bicubic'
 
-    ax.contour(mask,
-               levels=[0.5],
-               origin='lower',
-               #color='black',
-               #lw=10,
-               extent=[a0, a1, d0, d1]) #,
-               #interpolation='nearest')  #'nearest'  'bicubic'
+    ax.contour(
+        mask,
+        levels=[0.5],
+        origin='lower',
+        #color='black',
+        #lw=10,
+        extent=[a0, a1, d0, d1])  #,
+    #interpolation='nearest')  #'nearest'  'bicubic'
 
     #plt.plot(0.,0.,marker='*',color='yellow',markersize=0.2,markeredgecolor='black')
     #plt.plot(0.,
@@ -328,12 +329,18 @@ def exec_summary(workdir,
                  DoInterestingRegion=False,
                  LinearNotLog=False,
                  errthreshs=None,
+                 RangeValues=None,
+                 PlotFullDomain=False,
                  WithErrors=True,
                  Zoom=False,
                  side=1.2):
     """
     errthreshs = [['log(Tdust)', 0.2], ['log(amax)', 1.], ['log(Sigma_g)', 0.3]]
     defines the mask with thresholds for parameters in that list
+
+    RangeValues={'log(amax)':[-0.58,2.0]},
+    use to pass specific ranges rather than min/max into error threshold masks.
+
     """
     print("workdir:", workdir)
     #matplotlib.rc('text', usetex=True)
@@ -375,9 +382,9 @@ def exec_summary(workdir,
     DoInterestingRegion0 = False
 
     errmask = None
-    
+
     from PyVtools import Vtools
-    
+
     if errthreshs is not None:
         for apara in errthreshs:
             parname = apara[0]
@@ -409,7 +416,7 @@ def exec_summary(workdir,
             else:
                 errmask = errmask * amask
 
-    ThisLinearNotLog=LinearNotLog
+    ThisLinearNotLog = LinearNotLog
     for ipara, apara in enumerate(domain):
         iplotpos += 1
         parname = apara[0]
@@ -424,7 +431,7 @@ def exec_summary(workdir,
             if DoInterestingRegion:
                 DoInterestingRegion0 = True
         elif 'amax' in parname:
-            ThisLinearNotLog=False
+            ThisLinearNotLog = False
             rootname = 'imlogamax.fits'
             if ThisLinearNotLog:
                 atitle = r'${\rm a}_{\rm max}/{\rm cm}$'
@@ -433,12 +440,12 @@ def exec_summary(workdir,
             #cmap = 'jet'
             cmap = 'Greens'
         elif 'expo' in parname:
-            ThisLinearNotLog=False
+            ThisLinearNotLog = False
             rootname = 'imq_dustexpo.fits'
             atitle = r'$q$'
             cmap = 'jet'
         elif 'Sigma' in parname:
-            ThisLinearNotLog=False
+            ThisLinearNotLog = False
             rootname = 'imlogSigma_g.fits'
             if ThisLinearNotLog:
                 atitle = r'${\Sigma}_{\rm g}/{\rm g\,cm}^{-2}$'
@@ -457,8 +464,17 @@ def exec_summary(workdir,
         cbunits = ''
 
         filename_contours = False
-        Range = apara[1]
 
+        if PlotFullDomain:
+            passrangevalues = apara[1]
+        elif RangeValues is not None:
+            if parname in RangeValues.keys():
+                passrangevalues = RangeValues[parname]
+            else:
+                passrangevalues = None
+        else:
+            passrangevalues = None
+            
         if WithAxes:
             VisibleXaxis = True
             VisibleYaxis = False
@@ -485,7 +501,7 @@ def exec_summary(workdir,
             DoCB=DoCB,
             DoAxesLabels=DoAxesLabels,
             cmap=cmap,
-            # Range=Range,
+            Range=passrangevalues,
             Zoom=Zoom,
             side=side,
             DoInterestingRegion=DoInterestingRegion0,
@@ -503,10 +519,10 @@ def exec_summary(workdir,
             cmap = 'binary'
             #cmap='Greys'
             if ThisLinearNotLog:
-                ThisErrLinearNotLog=subim_grey
+                ThisErrLinearNotLog = subim_grey
             else:
-                ThisErrLinearNotLog=None
-                
+                ThisErrLinearNotLog = None
+
             (clevs, clabels, errsubim_grey) = addimage(
                 ierrplotpos,
                 label,
