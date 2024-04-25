@@ -529,7 +529,7 @@ def parspar(n):
         # sys.exit('FIXED VTURB')
     else:
         #m.limits['vturb']=(0.0, 2E4)
-        m.limits['log10vturb'] = (np.log10(1E2), np.log10(1E6))
+        m.limits['log10vturb'] = (np.log10(1), np.log10(1E6))
         #m.limits['vturb']=(0.0, 4E4)
 
     m.errordef = Minuit.LEAST_SQUARES
