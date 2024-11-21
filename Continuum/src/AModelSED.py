@@ -783,8 +783,7 @@ class MSED(Setup):
         if not res:
             print("lam_avg",lam_avg)
             print("observed frequencies must be in descending order for dsharp_opac")
-            
-            #sys.exit("observed frequencies must be in descending order for dsharp_opac")
+            sys.exit("observed frequencies must be in descending order for dsharp_opac")
         
         
         #res = [

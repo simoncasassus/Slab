@@ -161,7 +161,7 @@ def summary_SEDs(nvar,
     lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
     nus = 10**lognus
 
-    # wavelengths must be in decreasing order for dsharp_opac
+    # wavelengths must be in increasing order for dsharp_opac
     nus = np.flip(nus)
     
     ZSetup4plots.GoInterp = False
