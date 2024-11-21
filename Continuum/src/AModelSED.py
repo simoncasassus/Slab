@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import cmath as cma
 from time import time
-from astropy import constants as const
+#from astropy import constants as const
+from astropy.constants import astropyconst20 as const
 from pprint import pprint
 import dsharp_opac as opacity
 
@@ -776,6 +777,16 @@ class MSED(Setup):
         lam_avg = const.c.cgs.value / self.nus  # lambdas in cm
         q = -1 * self.q_dustexpo  #  [3.5]
 
+        #check if lam_avg is sorted:
+        is_sorted = lambda a: np.all(a[:-1] <= a[1:])
+        res = is_sorted(lam_avg)
+        if not res:
+            print("lam_avg",lam_avg)
+            print("observed frequencies must be in descending order for dsharp_opac")
+            
+            #sys.exit("observed frequencies must be in descending order for dsharp_opac")
+        
+        
         #res = [
         #    opacity.size_average_opacity(lam_avg,
         #                                 a,

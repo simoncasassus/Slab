@@ -164,7 +164,6 @@ def addimage(
     mask = (subintmask > 0)
 
     if errmask is not None:
-
         suberrmask = errmask[j0:j1, i0:i1]
         mask = ((suberrmask * subintmask) > 0)
 
@@ -346,7 +345,7 @@ def exec_summary(workdir,
     #matplotlib.rc('text', usetex=True)
     matplotlib.rc('font', family='sans-serif')
     #matplotlib.rcParams.update({'font.size': 16})
-    font = {'family': 'Arial', 'weight': 'normal', 'size': 12}
+    font = {'weight': 'normal', 'size': 12}
 
     matplotlib.rc('font', **font)
 
@@ -488,7 +487,7 @@ def exec_summary(workdir,
             label,
             atitle,
             filename_grey,
-            errmask=errmask,
+            errmask=None, #errmask,
             filename_serr=filename_serr,
             filename_contours=filename_contours,
             VisibleXaxis=VisibleXaxis,
@@ -528,7 +527,7 @@ def exec_summary(workdir,
                 label,
                 atitle,
                 filename_grey,
-                errmask=errmask,
+                errmask=None, #errmask,
                 workdir=workdir,
                 filename_contours=filename_contours,
                 VisibleXaxis=True,

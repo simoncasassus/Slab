@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import cmath as cma
 from time import time
-from astropy import constants as const
+#from astropy import constants as const
+from astropy.constants import astropyconst20 as const
 import dsharp_opac as opacity
 
 # matplotlib.use('Agg')
@@ -47,6 +48,9 @@ def gengrid(freqs, ZSetup, filetag=''):
     Ngrid_amax = len(a)
     smallestamax = np.min(a)  #cm
     largestamax = np.max(a)  # cm
+
+    print("largestamax", largestamax)
+    print("Ngrid_amax", Ngrid_amax)
     amaxs = a.copy()
 
     Ngrid_qdustexpo = 500
@@ -62,6 +66,11 @@ def gengrid(freqs, ZSetup, filetag=''):
         #print("iqdustexpo", iqdustexpo, " < ", Ngrid_qdustexpo)
 
         q = -1 * aqdustexpo  #  [3.5]
+
+        #lam_avg = [0.1, 0.3]  #DEV
+        #lam_avg = [0.3, 0.1]  #DEV
+        #q = 3.5  # DEV
+        #print("lam_avg", lam_avg)
         res_eff = opacity.size_average_opacity(lam_avg,
                                                a,
                                                lam,
@@ -69,6 +78,10 @@ def gengrid(freqs, ZSetup, filetag=''):
                                                k_sca_eff,
                                                q=q,
                                                plot=False)
+
+        #i_lam = 1  # DEV
+        #print("res['ka'][i_lam]", res_eff['ka'][i_lam])  # DEV
+        #sys.exit()
 
         kappa_abs_amaxs = res_eff['ka'] / 100
         kappa_scat_amaxs = res_eff['ks'] / 100
@@ -99,8 +112,6 @@ def gengrid(freqs, ZSetup, filetag=''):
         hdulabs.append(ahdu_abs)
         hdulscat.append(ahdu_scat)
 
-
-        
     if (not (os.path.exists(ZSetup.griddir))):
         os.system("mkdir " + ZSetup.griddir)
 

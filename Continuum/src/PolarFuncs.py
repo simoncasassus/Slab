@@ -9,8 +9,8 @@ from scipy import ndimage
 import scipy as sp
 import sys
 
-from astropy import constants as const
-
+#from astropy import constants as const
+from astropy.constants import astropyconst20 as const
 
 def polar2cartesian(outcoords, inputshape, origin):
     yindex, xindex = outcoords

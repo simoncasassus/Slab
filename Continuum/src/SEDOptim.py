@@ -16,7 +16,8 @@ import corner
 
 from multiprocessing import Pool
 
-from astropy import constants as const
+#from astropy import constants as const
+from astropy.constants import astropyconst20 as const
 
 c_MKS = const.c.value  # m/s
 k_B = const.k_B.value
@@ -160,6 +161,9 @@ def summary_SEDs(nvar,
     lognus = lognu1 + (np.arange(N_freqs) / N_freqs) * (lognu2 - lognu1)
     nus = 10**lognus
 
+    # wavelengths must be in decreasing order for dsharp_opac
+    nus = np.flip(nus)
+    
     ZSetup4plots.GoInterp = False
     ZSetup4plots.GoNearNeighbor1D = False
     ASED4plots.GoInterp = False

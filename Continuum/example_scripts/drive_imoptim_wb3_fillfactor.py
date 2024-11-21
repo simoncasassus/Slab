@@ -37,10 +37,11 @@ import Slab.Continuum.src.SummaryFigDust as SummaryFigDust
 
 datadir = '/home/simon/common/ppdisks/ISO-Oph_2/proc/'
 
+## arrange images in increasing order of wavelength
 files_images = [
-    datadir + 'B3_r07_zoom.fits',
-    datadir + 'B6_SB17LB19_r2_degrad_to_b3r07_z.fits',
     datadir + 'B8_r0.8_degrad_to_b3r07_z.fits',
+    datadir + 'B6_SB17LB19_r2_degrad_to_b3r07_z.fits',
+    datadir + 'B3_r07_zoom.fits',
 ]
 
 #files_specindex = [
@@ -60,10 +61,10 @@ files_images = [
 outputdir = './output_imoptim_wb3r07_wfillfactor/'
 SED_filename_tag = ''
 SingleLOS = None
-#SingleLOS = [19, 8]  # x, y peak B6
-#SED_filename_tag = '_peakB6'
-SingleLOS = [9, 18]  # x, y minimum B6 Eastern side
-SED_filename_tag = '_minB6'
+SingleLOS = [19, 8]  # x, y peak B6
+SED_filename_tag = '_peakB6'
+#SingleLOS = [9, 18]  # x, y minimum B6 Eastern side
+#SED_filename_tag = '_minB6'
 ZSetup = AModelSED.Setup(
     filetag='',  # False
     PrintChi2s=True,
@@ -87,16 +88,20 @@ hdu_canvas, mfreq_imhdus, omega_beams, im_fillfactor = ImOptim.loaddata(
 
 omega_beam = omega_beams[0]
 
-obsfreqs = np.array([97502954743.1, 224997088629.1, 405022769701.0])
-rmsnoises = 1E6 * np.array([9.895e-05, 1.383e-04, 2.772e-04
+## arrange SED arrays  in increasing order of wavelength
+obsfreqs = np.array([405022769701.0, 224997088629.1, 97502954743.1])
+rmsnoises = 1E6 * np.array([2.772e-04, 1.383e-04,  9.895e-05
                             ])  #rms noise in uJy/beam
+fluxcal_accuracy = np.array([0.1, 0.05, 0.05])
 
-fluxcal_accuracy = np.array([0.05, 0.05, 0.1])
-
+#c_MKS = const.c.value  # DEV 
+#obsfreqs = np.array([c_MKS/0.3E-2, c_MKS/0.1E-2]) #DEV 
+#print("obsfreqs",obsfreqs) # DEV
+os.system("rm -rf "+ZSetup.griddir) # DEV
 if not os.path.isfile(ZSetup.griddir + 'kappa_abs_grid.fits'):
     print("computing  grid for intensity data")
     GenOpacGridsDSHARP.gengrid(obsfreqs, ZSetup, filetag='')
-
+    
 # obsnu1s = np.array([100E9, 150E9, 230E9, 345E9])
 
 # obsnu2s = np.array([130E9, 165E9, 245E9, 360E9])

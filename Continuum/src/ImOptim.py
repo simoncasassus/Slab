@@ -14,8 +14,8 @@ import sys
 from multiprocessing import Pool
 from tqdm import tqdm
 
-from astropy import constants as const
-
+#from astropy import constants as const
+from astropy.constants import astropyconst20 as const
 HOME = os.environ.get('HOME')
 include_path = HOME + '/common/python/include'
 sys.path.append(include_path)
@@ -290,6 +290,7 @@ def exec_imoptim(
             print("SHIFTING intrabandspecindex by : ",
                   shift_intraband_specindex)
 
+            
     for ix in range(nx):
         for iy in range(ny):
 
@@ -301,6 +302,7 @@ def exec_imoptim(
                 ddelta = yys[iy, ix]
                 OptimM.label4SED = r"$\Delta\alpha=%.2f~~\Delta\delta=%.2f$" % (
                     dalpha, ddelta)
+                print("OptimM.label4SED",OptimM.label4SED)
                 #OptimM.label4SED = r"$\Delta\alpha=%.2f$" % (
                 #    dalpha) + "\n" + r"$\Delta\delta=%.2f$" % (ddelta)
                 #print("alpha :", xxs[iy, ix], "delta:", yys[iy, ix], "radius",
