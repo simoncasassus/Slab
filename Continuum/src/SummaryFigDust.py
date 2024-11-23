@@ -329,6 +329,7 @@ def exec_summary(workdir,
                  LinearNotLog=False,
                  errthreshs=None,
                  RangeValues=None,
+                 chi2mask=True,
                  PlotFullDomain=False,
                  WithErrors=True,
                  Zoom=False,
@@ -415,6 +416,20 @@ def exec_summary(workdir,
             else:
                 errmask = errmask * amask
 
+    if chi2mask:
+        filename_chi2 = workdir + 'chi2map.fits'
+        hdu_chi2 = fits.open(filename_chi2)
+        im_chi2 = hdu_chi2[0].data
+        mask_chi2 = (im_chi2 < 3)
+        if errmask is None:
+            errmask = mask_chi2
+        else:
+            errmask = errmask * mask_chi2
+        
+        
+        
+
+                
     ThisLinearNotLog = LinearNotLog
     for ipara, apara in enumerate(domain):
         iplotpos += 1
@@ -487,7 +502,7 @@ def exec_summary(workdir,
             label,
             atitle,
             filename_grey,
-            errmask=None, #errmask,
+            errmask=errmask,
             filename_serr=filename_serr,
             filename_contours=filename_contours,
             VisibleXaxis=VisibleXaxis,
@@ -527,7 +542,7 @@ def exec_summary(workdir,
                 label,
                 atitle,
                 filename_grey,
-                errmask=None, #errmask,
+                errmask=errmask,
                 workdir=workdir,
                 filename_contours=filename_contours,
                 VisibleXaxis=True,

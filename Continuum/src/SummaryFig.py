@@ -300,7 +300,7 @@ def exec_summary(workdir,
     #matplotlib.rc('text', usetex=True)
     matplotlib.rc('font', family='sans-serif')
     #matplotlib.rcParams.update({'font.size': 16})
-    font = {'family': 'Arial', 'weight': 'normal', 'size': 12}
+    font = {'weight': 'normal', 'size': 12}
 
     matplotlib.rc('font', **font)
 
@@ -316,8 +316,9 @@ def exec_summary(workdir,
         nplotsy = 1
         nplotsx = len(files_images)
 
-    subfigsize = 3.5
-    figsize = (subfigsize * nplotsx, subfigsize * nplotsy)
+    subfigxsize = 2.5
+    subfigysize = 3.5
+    figsize = (subfigxsize * nplotsx, subfigysize * nplotsy)
 
     # (fig0, axes) = plt.subplots(nrows=nplotsy,ncols=nplotsx,figsize=figsize)
 
@@ -413,11 +414,11 @@ def exec_summary(workdir,
                 cbunits=cbunits,
                 cbfmt='%.2f')
 
-    plt.subplots_adjust(hspace=0.1)
-    plt.subplots_adjust(wspace=0.1)
-
-    plt.subplots_adjust(hspace=0.)
-    plt.subplots_adjust(wspace=0.)
+    #plt.subplots_adjust(hspace=0.1)
+    #plt.subplots_adjust(wspace=0.1)
+    #
+    #plt.subplots_adjust(hspace=0.)
+    #plt.subplots_adjust(wspace=0.)
 
     print(fileout)
     #plt.tight_layout()
