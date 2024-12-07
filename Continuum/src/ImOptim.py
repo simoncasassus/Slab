@@ -32,6 +32,21 @@ sys.path.append(include_path)
 import Slab.Continuum.src.AModelSED as AModelSED
 import Slab.Continuum.src.SEDOptim as SEDOptim
 
+def loadapixelvalue(outputdir,SingleLOS,tag='amax'):
+    ix = SingleLOS[0]
+    iy = SingleLOS[1]
+    filecheck=outputdir+'imlog'+tag+'.fits'
+    if  os.path.exists(filecheck):
+            im=fits.open(filecheck)[0].data
+            refvalue = im[iy,ix]
+            print("ref value>"+filecheck+" "+str(refvalue)) 
+    filecheck=outputdir+'serrimlog'+tag+'.fits'
+    if  os.path.exists(filecheck):
+            im=fits.open(filecheck)[0].data
+            refvalue = im[iy,ix]
+            print("ref value>"+filecheck+" "+str(refvalue))
+    return
+
 
 def load_imagfile(file_data, zoomfactor=1., Debug=False, outputdir=''):
 
@@ -105,13 +120,17 @@ def exec_optim_1los(pos, OptimM=None, ZSetup=None, ZSED=None, ZMerit=None):
     #[names, bestparams] = OptimM.ConjGrad(ZSetup, AData, ASED, ZMerit)
     #passout = [names, bestparams]
 
-    ASED = AModelSED.MSED(ZSetup)
-    ASED.copy(ZSED)
-
-    #OptimM.domain = OptimM.domain_MCMC
-    [names, mcmc_results, bestparams, modelInus, modelalphas,
-     achi2] = OptimM.MCMC(ZSetup, AData, ASED, ZMerit)
-
+    #ASED = AModelSED.MSED(ZSetup)
+    #ASED.copy(ZSED) DEV
+    ASED = deepcopy(ZSED)
+    if 'emcee' in OptimM.sampler:
+        #OptimM.domain = OptimM.domain_MCMC
+        [names, mcmc_results, bestparams, modelInus, modelalphas,
+         achi2] = OptimM.MCMC(ZSetup, AData, ASED, ZMerit)
+    elif 'dynesty' in OptimM.sampler:
+        [names, mcmc_results, bestparams, modelInus, modelalphas,
+         achi2] = OptimM.dynesty(ZSetup, AData, ASED, ZMerit)
+        
     if OptimM.RunConjGrad:
         OptimM.Inherit_Init = True
         ZSetup4Powell = deepcopy(ZSetup)
@@ -263,7 +282,6 @@ def exec_imoptim(
     ny, nx = im_canvas.shape
     rmsnoises /= ZData.omega_beam
     rmsnoises *= 1E-6
-    #print("nx ",nx,"ny",ny) # DEV
     hdr_canvas = hdu_canvas[0].header
     ivec = np.arange(0, nx)
     jvec = np.arange(0, ny)
@@ -391,8 +409,9 @@ def exec_imoptim(
                 nu1s = np.array(nu1s)
                 nu2s = np.array(nu2s)
 
-            AData = SEDOptim.Data()
-            AData.copy(ZData)
+            #AData = SEDOptim.Data()
+            #AData.copy(ZData)
+            AData=deepcopy(ZData)
             AData.Inus = Inus
             AData.fillfactor = fillfactor
             if rmsnoises is not None:
@@ -420,19 +439,29 @@ def exec_imoptim(
 
     print("loaded all ", len(tasks), "tasks")
 
-    with Pool(n_cores_map) as pool:
-        Pooloutput = list(
-            tqdm(pool.imap(
-                partial(exec_optim_1los,
-                        OptimM=OptimM,
-                        ZSetup=ZSetup,
-                        ZSED=ZSED,
-                        ZMerit=ZMerit), tasks),
-                 total=len(tasks)))
-        pool.close()
-        pool.join()
+    if n_cores_map > 1: 
+        with Pool(n_cores_map) as pool:
+            Pooloutput = list(
+                tqdm(pool.imap(
+                    partial(exec_optim_1los,
+                            OptimM=OptimM,
+                            ZSetup=ZSetup,
+                            ZSED=ZSED,
+                            ZMerit=ZMerit), tasks),
+                     total=len(tasks)))
+            pool.close()
+            pool.join()
+    else:
+        Pooloutput=[]
+        for atask in tasks:
+            print("atask",atask)
+            Pooloutput.append(exec_optim_1los(atask,OptimM=OptimM, ZSetup=ZSetup, ZSED=ZSED, ZMerit=ZMerit))
 
+            
     if SingleLOS is not None:
+        loadapixelvalue(outputdir,SingleLOS,tag='amax')
+        loadapixelvalue(outputdir,SingleLOS,tag='Sigma_g')
+        loadapixelvalue(outputdir,SingleLOS,tag='Tdust')
         return
 
     for alos in Pooloutput:

@@ -329,8 +329,8 @@ def exec_summary(workdir,fileout,vsyst=0.,vrange=10.,fix_vturb=False, WCont=True
 
         print( "workdir:",workdir)
         if (not re.search(r"\/$",workdir)):
-            outputdir+='/'
-            print("added trailing back slack to outputdir")
+            workdir+='/'
+            print("added trailing back slack to workdir")
 
         #matplotlib.rc('text', usetex=True) 
         matplotlib.rc('font', family='sans-serif') 

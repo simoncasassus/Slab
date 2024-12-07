@@ -3,6 +3,7 @@ import os
 import re
 import numpy as np
 import math
+from copy import deepcopy
 import matplotlib
 from astropy.io import fits
 import matplotlib.pyplot as plt
@@ -536,15 +537,16 @@ class MSED(Setup):
                 self.kappa_as_scat_4nearneighbor1D = self.kappa_as_scat
                 self.amax = amax
 
-    def copy(self, AnotherSED):
-        #self.__dict__.update(AnotherSED.__dict__)
-        attributes_source = AnotherSED.__dict__
-        for anattribute in attributes_source.keys():
-            value_source = getattr(AnotherSED, anattribute)
-            if isinstance(value_source, np.ndarray):
-                #print("found ndarray ", anattribute)
-                attributes_source[anattribute] = value_source.copy()
-        self.__dict__.update(attributes_source)
+    #def copy(self, AnotherSED):
+    #    #self.__dict__.update(AnotherSED.__dict__)
+    #    attributes_source = AnotherSED.__dict__
+    #    for anattribute in attributes_source.keys():
+    #        value_source = getattr(AnotherSED, anattribute)
+    #        attributes_source[anattribute] = deepcopy(value_source)
+    #        #if isinstance(value_source, np.ndarray):
+    #        #    #print("found ndarray ", anattribute)
+    #        #    attributes_source[anattribute] = value_source.copy()
+    #    self.__dict__.update(attributes_source)
 
     def get_Sigma_as(self):
 

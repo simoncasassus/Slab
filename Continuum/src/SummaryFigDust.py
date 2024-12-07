@@ -4,6 +4,7 @@ import re
 from astropy.io import fits
 import scipy
 import scipy.signal
+import astropy.constants as const
 
 import matplotlib
 from matplotlib.colors import LogNorm
@@ -67,6 +68,7 @@ def addimage(
         Range=False,
         SymmetricRange=False,
         MedianvalRange=False,
+        distance=112.,
         DoCB=True,
         DoAxesLabels=True,
         cmap='RdBu_r',
@@ -194,8 +196,8 @@ def addimage(
 
     subim_grey[np.invert(mask)] = np.nan
 
-    if ('sigma' in filename_grey):
-        cmap = 'magma_r'
+    #if ('sigma' in filename_grey):
+    #    cmap = 'magma_r'
 
     #print("max:", np.max(subim_grey))
     #print("min:", np.min(subim_grey))
@@ -205,6 +207,42 @@ def addimage(
     #subim_grey = np.nan_to_num(subim_grey)
 
     #norm=LogNorm(vmin=range1, vmax=range2),
+
+    if ('sigma' in filename_grey.lower()) and not ('err' in filename_grey.lower()):
+        mask_4sigma = mask.copy()
+        subim_grey_Sigma = subim_grey.copy()
+        subim_grey_Sigma[subim_grey < range1] = 0
+        subim_grey_Sigma[subim_grey > range2] = 0
+        if not LinearNotLog:
+            subim_grey_Sigma = 10**subim_grey_Sigma
+        au_CGS = const.au.cgs.value
+        pix_size = distance * hdr_grey['CDELT2'] * 3600. 
+        print("pix_size ", pix_size, " au")
+        surface_pix = (pix_size * au_CGS)**2
+        Mdust = surface_pix * np.sum(subim_grey_Sigma[mask_4sigma])
+        print("enclosed Mdust ", Mdust / (100. * const.M_sun.cgs.value),
+              " Msun")
+        Sigma_median = np.median(subim_grey_Sigma[mask_4sigma])
+        print("median surface density is", Sigma_median)
+        Npix_enclosed = np.sum(np.ones(subim_grey.shape)[mask_4sigma])
+        #Surface_enclosed = pix_size**2  * Npix_enclosed
+        #Mdust_median =  Surface_enclosed * (au_CGS**2) * Sigma_median 
+        #print("enclosed Mdust median ",
+        #      Mdust_median / (100. * const.M_sun.cgs.value),
+        #      " Msun in Npix_enclosed = ", Npix_enclosed)
+        #print("Surface_enclosed",Surface_enclosed,"au2")
+        #r_ring = distance * 0.7  # ring radius in au
+        #print("r_ring ", r_ring, " au")
+        #Surface_compar = np.pi * r_ring * 1.2 * r_ring * 1.2 * np.cos(
+        #    50. * np.pi / 180.) - np.pi * r_ring * r_ring * np.cos(
+        #        50. * np.pi / 180.)
+        #print("Surface_compar ", Surface_compar, " au2")
+        #print("surface_pix ", pix_size**2, "au2")
+        #Mcompar = Surface_compar * Sigma_median * (au_CGS**2)
+        #Npix_compar = Surface_compar / pix_size**2
+        #print("Mcompar ", Mcompar / (100. * const.M_sun.cgs.value),
+        #      "Msun in Npix =", Npix_compar)
+        #print("subim_grey_Sigma.size", subim_grey_Sigma.size)
 
     theimage = ax.imshow(
         subim_grey,
@@ -319,21 +357,24 @@ def addimage(
     return clevs, clabels, subim_grey
 
 
-def exec_summary(workdir,
-                 domain,
-                 fileout,
-                 DoCB=True,
-                 DoAxesLabels=True,
-                 WithAxes=True,
-                 DoInterestingRegion=False,
-                 LinearNotLog=False,
-                 errthreshs=None,
-                 RangeValues=None,
-                 chi2mask=True,
-                 PlotFullDomain=False,
-                 WithErrors=True,
-                 Zoom=False,
-                 side=1.2):
+def exec_summary(
+        workdir,
+        domain,
+        fileout,
+        DoCB=True,
+        DoAxesLabels=True,
+        WithAxes=True,
+        DoInterestingRegion=False,
+        LinearNotLog=False,
+        errthreshs=None,
+        RangeValues=None,
+        chi2_limit=100., # maximum chi2 value (including Regul terms)
+        chi2mask=True,
+        distance=112.,  # pc
+        PlotFullDomain=False,
+        WithErrors=True,
+        Zoom=False,
+        side=1.2):
     """
     errthreshs = [['log(Tdust)', 0.2], ['log(amax)', 1.], ['log(Sigma_g)', 0.3]]
     defines the mask with thresholds for parameters in that list
@@ -416,20 +457,20 @@ def exec_summary(workdir,
             else:
                 errmask = errmask * amask
 
+    #from PyVtools.Vtools import View
+    #View(errmask)
+    #sys.exit()
+
     if chi2mask:
         filename_chi2 = workdir + 'chi2map.fits'
         hdu_chi2 = fits.open(filename_chi2)
         im_chi2 = hdu_chi2[0].data
-        mask_chi2 = (im_chi2 < 3)
+        mask_chi2 = (im_chi2 < chi2_limit)
         if errmask is None:
             errmask = mask_chi2
         else:
             errmask = errmask * mask_chi2
-        
-        
-        
 
-                
     ThisLinearNotLog = LinearNotLog
     for ipara, apara in enumerate(domain):
         iplotpos += 1
@@ -488,7 +529,7 @@ def exec_summary(workdir,
                 passrangevalues = None
         else:
             passrangevalues = None
-            
+
         if WithAxes:
             VisibleXaxis = True
             VisibleYaxis = False
@@ -497,33 +538,34 @@ def exec_summary(workdir,
             if iplotpos == 1:
                 VisibleYaxis = True
 
-        (clevs, clabels, subim_grey) = addimage(
-            iplotpos,
-            label,
-            atitle,
-            filename_grey,
-            errmask=errmask,
-            filename_serr=filename_serr,
-            filename_contours=filename_contours,
-            VisibleXaxis=VisibleXaxis,
-            VisibleYaxis=VisibleYaxis,
-            DoBeamEllipse=True,
-            DoGreyCont=False,
-            nplotsx=nplotsx,
-            nplotsy=nplotsy,
-            SymmetricRange=False,
-            DoCB=DoCB,
-            DoAxesLabels=DoAxesLabels,
-            cmap=cmap,
-            Range=passrangevalues,
-            Zoom=Zoom,
-            side=side,
-            DoInterestingRegion=DoInterestingRegion0,
-            cbunits=cbunits,
-            scaleunits=1.,
-            workdir=workdir,
-            LinearNotLog=ThisLinearNotLog,
-            cbfmt='%.2f')
+        (clevs, clabels,
+         subim_grey) = addimage(iplotpos,
+                                label,
+                                atitle,
+                                filename_grey,
+                                errmask=errmask,
+                                filename_serr=filename_serr,
+                                filename_contours=filename_contours,
+                                VisibleXaxis=VisibleXaxis,
+                                VisibleYaxis=VisibleYaxis,
+                                DoBeamEllipse=True,
+                                DoGreyCont=False,
+                                nplotsx=nplotsx,
+                                nplotsy=nplotsy,
+                                SymmetricRange=False,
+                                DoCB=DoCB,
+                                DoAxesLabels=DoAxesLabels,
+                                cmap=cmap,
+                                distance=distance,
+                                Range=passrangevalues,
+                                Zoom=Zoom,
+                                side=side,
+                                DoInterestingRegion=DoInterestingRegion0,
+                                cbunits=cbunits,
+                                scaleunits=1.,
+                                workdir=workdir,
+                                LinearNotLog=ThisLinearNotLog,
+                                cbfmt='%.2f')
         DoInterestingRegion0 = False
         if WithErrors:
             ierrplotpos = iplotpos + nplotsx
@@ -554,6 +596,7 @@ def exec_summary(workdir,
                 nplotsy=nplotsy,
                 SymmetricRange=False,
                 DoCB=DoCB,
+                distance=distance,
                 DoAxesLabels=DoAxesLabels,
                 cmap=cmap,
                 Zoom=Zoom,
