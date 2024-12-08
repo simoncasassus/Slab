@@ -11,13 +11,12 @@ import cmath as cma
 
 from pprint import pprint
 
-
-
 from astropy import constants as const
 #from astropy.constants import astropyconst20 as const
 
 c_MKS = const.c.value  # m/s
 k_B = const.k_B.value
+
 
 def assignfreeparams(parnames, values, ASED):
 
@@ -45,12 +44,22 @@ def lnlike(x_free, parnames, ZSetup, ZData, ASED, ASED4alphas, ZMerit):
     return -0.5 * chi2
 
 
-
 def logL(ZData,
          ASED,
+         LbdaSigma_gRegul = 1.,
+         MaxOptDepth = 3.,
+         LbdaOptDepthRegul = 10.,
+         LbdaamaxRegul = 1.,
          with_specindexdata=False,
          ASED4alphas=False,
          Regul=False):
+    """
+    Regularization:
+    LbdaSigma_gRegul = 1.  -> Weight for Sigma_g regul
+    MaxOptDepth = 3.  -> maximum optical depth at lowest freq
+    LbdaOptDepthRegul = 1E3 -> weight for optical depth regul 
+    LbdaamaxRegul = 1. -> weight for amax regular
+    """
 
     if (np.sum(ZData.sInus) == 0):
         chi2 = np.array([0.])
@@ -80,27 +89,23 @@ def logL(ZData,
 
     if Regul:
         regulterm = 0.
-        LbdaMassRegul = 1E1
         #LbdaMassRegul = 0.
         if ASED.Sigma_g > ASED.Sigma_g_0:
             SMassRegul = ((ASED.Sigma_g - ASED.Sigma_g_0) / ASED.Sigma_g_0)**2
-            regulterm += LbdaMassRegul * SMassRegul
+            regulterm += LbdaSigma_gRegul * SMassRegul
             #print("REgularizing Sigma ", chi2, SMassRegul)
 
-        amax_c = 0.1 # cm
-        LbdaamaxRegul=0.
+        amax_c = 0.1  # cm
         if ASED.amax > amax_c:
             SamaxRegul = ((ASED.amax - amax_c) / amax_c)**2
             regulterm += LbdaamaxRegul * SamaxRegul
             #print("REgularizing Sigma ", chi2, SMassRegul)
-            
-        MaxOptiDepth = 2.
-        LbdaOpacRegul = 1E2
+
         inulowest = np.argmin(ZData.nus)
         lowesttau = ASED.tau[inulowest]
-        if (lowesttau > MaxOptiDepth):
-            SOpacRegul = (lowesttau - MaxOptiDepth)**2
-            regulterm += LbdaOpacRegul * SOpacRegul
+        if (lowesttau > MaxOptDepth):
+            SOpacRegul = (lowesttau - MaxOptDepth)**2
+            regulterm += LbdaOptDepthRegul * SOpacRegul
             #print("REgularizing Opac ", chi2, SOpacRegul)
         chi2 += regulterm
         retvals[0] = chi2

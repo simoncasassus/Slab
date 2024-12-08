@@ -171,7 +171,10 @@ def loaddata(files_images,
                 sys.exit("align images first")
             else:
                 pixscaleref = pixscale
-
+    domega_beams = omega_beams - np.roll(omega_beams,1)
+    if (np.fabs(np.max(domega_beams)) > 1E-4 * omega_beams[0]):
+        sys.exit("smooth images to common beam")
+                
     print(len(mfreq_imhdus))
     hdu_canvas = mfreq_imhdus[0]
 

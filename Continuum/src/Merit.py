@@ -6,9 +6,8 @@ from time import time
 from copy import deepcopy
 import astropy.constants as const
 
-
-
 from .Likelihood import logL
+
 
 class Merit():
     """
@@ -19,8 +18,15 @@ class Merit():
         with_specindexdata=False,
         VerboseInit=False,
         ExecTimeReport=False,
+        LbdaSigma_gRegul=1.,
+        MaxOptDepth=3.,
+        LbdaOptDepthRegul=1E3,
+        LbdaamaxRegul=1.,
         Regul=False,
     ):
+        """
+        if Regul then use weights Lbda*, MaxOptDepth is at lowest freq
+        """
         initlocals = locals()
         initlocals.pop('self')
         for a_attribute in initlocals.keys():
@@ -52,6 +58,10 @@ class Merit():
                        ASED,
                        with_specindexdata=self.with_specindexdata,
                        ASED4alphas=ASED4alphas,
+                       LbdaSigma_gRegul=self.LbdaSigma_gRegul,
+                       MaxOptDepth=self.MaxOptDepth,
+                       LbdaOptDepthRegul=self.LbdaOptDepthRegul,
+                       LbdaamaxRegul=self.LbdaamaxRegul,
                        Regul=self.Regul)
         #chi2 = retvals[0]
         #print("result ",retvals[0], ASED.nus,ASED.Inus, ASED4alphas.Inus, ASED.amax, )

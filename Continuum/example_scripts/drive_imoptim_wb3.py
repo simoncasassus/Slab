@@ -17,15 +17,6 @@ from tqdm import tqdm
 from astropy import constants as const
 
 HOME = os.environ.get('HOME')
-include_path = HOME + '/common/python/include'
-sys.path.append(include_path)
-
-import PyVtools.Vtools as Vtools
-from ImUtils.Resamp import gridding
-from ImUtils.Cube2Im import slice0
-from Gausssmooth import Gauss_filter
-
-HOME = os.environ.get('HOME')
 include_path = HOME + '/gitcommon/'
 sys.path.append(include_path)
 
@@ -34,44 +25,35 @@ import Slab.Continuum.src.SEDOptim as SEDOptim
 import Slab.Continuum.src.ImOptim as ImOptim
 import Slab.Continuum.src.GenOpacGridsDSHARP as GenOpacGridsDSHARP
 import Slab.Continuum.src.SummaryFigDust as SummaryFigDust
+from Slab.Continuum.src.Merit import Merit
 
-datadir = '/home/simon/common/ppdisks/ISO-Oph_2/proc/'
+datadir = '/home/simon/PDS70snow/slab/proc/'
 
-## arrange images in increasing order of wavelength
 files_images = [
-    datadir + 'B8_r0.8_degrad_to_b3r07_z.fits',
-    datadir + 'B6_SB17LB19_r2_degrad_to_b3r07_z.fits',
-    datadir + 'B3_r07_zoom.fits',
+    datadir + 'B9_z_s.fits',
+    datadir + 'B7_z_s.fits',
+    datadir + 'B4_z_s.fits',
+    datadir + 'B3_z.fits',
 ]
 
-#files_specindex = [
-#    datadir + 'specindec_100.fits',
-#    datadir + 'specindec_150.fits',
-#    datadir + 'specindec_230.fits',
-#    datadir + 'specindec_345.fits',
-#]
-#
-#files_errspecindex = [
-#    datadir + 'sspecindec_100.fits',
-#    datadir + 'sspecindec_150.fits',
-#    datadir + 'sspecindec_230.fits',
-#    datadir + 'sspecindec_345.fits',
-#]
-
-outputdir = './output_imoptim_wb3r07_xcheck/'
+outputdir = './output_imoptim_wb3_emcee_ncores_nofluxscaleb9_broadball/'
+#outputdir = './output_imoptim_wb3_emcee_singlecore_2/'
 SED_filename_tag = ''
 SingleLOS = None
-SingleLOS = [19, 8]  # x, y peak B6
-SED_filename_tag = '_peakB6'
-#SingleLOS = [9, 18]  # x, y minimum B6 Eastern side
-#SED_filename_tag = '_minB6'
+#SED_filename_tag = '_Ering'
+#SingleLOS = [30, 44]  # x, y peak B4 in coarse pixeled (resample - zooomfacto#SingleLOS = [74, 84]  # x, y peak B4 in coarse pixeled (resample - zooomfactor) images
+#SED_filename_tag = '_B4peak'
+#SingleLOS = [33, 42]  # 
+#SED_filename_tag = '_Wring'
+#SingleLOS = [35, 28]  # 
+
 ZSetup = AModelSED.Setup(
     filetag='',  # False
     PrintChi2s=True,
     ClearOutputDir=(SingleLOS is None),
     GenFigs=True,
     GoInterp=True,
-    griddir='./opac_grids_wb3_xcheck/',
+    griddir='./opac_grids_wb3/',
     opct_file=
     '/home/simon/gitcommon/Slab/Continuum/opct_mix.txt',  #optical constants
     VerboseInit=False,
@@ -81,25 +63,26 @@ hdu_canvas, mfreq_imhdus, omega_beams = ImOptim.loaddata(
     files_images,
     files_specindex=None,
     files_errspecindex=None,
-    zoomfactor=4,
+    zoomfactor=8,
     outputdir=outputdir)
 
 omega_beam = omega_beams[0]
 
-## arrange SED arrays  in increasing order of wavelength
-obsfreqs = np.array([405022769701.0, 224997088629.1, 97502954743.1])
-rmsnoises = 1E6 * np.array([2.772e-04, 1.383e-04,  9.895e-05
-                            ])  #rms noise in uJy/beam
-fluxcal_accuracy = np.array([0.1, 0.05, 0.05])
+obsfreqs = np.array([671E9, 351E9, 145E9, 97.5E9])
 
-#c_MKS = const.c.value  # DEV 
-#obsfreqs = np.array([c_MKS/0.3E-2, c_MKS/0.1E-2]) #DEV 
-#print("obsfreqs",obsfreqs) # DEV
+rmsnoises = 1E6 * np.array([8.6e-05,
+                            2.6e-05,
+                            4.7e-06,
+                            5.4e-06,
+                            ])  #rms noise in uJy/beam
+
+fluxcal_accuracy = np.array([0.1, 0.1, 0.05, 0.05])
+
 os.system("rm -rf "+ZSetup.griddir) # DEV
 if not os.path.isfile(ZSetup.griddir + 'kappa_abs_grid.fits'):
     print("computing  grid for intensity data")
     GenOpacGridsDSHARP.gengrid(obsfreqs, ZSetup, filetag='')
-    
+
 # obsnu1s = np.array([100E9, 150E9, 230E9, 345E9])
 
 # obsnu2s = np.array([130E9, 165E9, 245E9, 360E9])
@@ -127,27 +110,42 @@ ZSED = AModelSED.MSED(
     f_grain=1.,  # grain filling factor
     amin=1E-4,  # cm
     amax=1.,  # cm, maximum grain size
-    Sigma_g=30.,  # g/cm2
+    Sigma_g=1E5, # g/cm2
     gtod_ratio=100.,
     rho0=2.77,  # g/cm3
     N_asizes=1000,
     nus=obsfreqs)
 
+
+#Conmpute SED with 
 #ZSED.calcul()
 
-ZMerit = SEDOptim.Merit(ExecTimeReport=False, with_specindexdata=False)
+
+
+"""
+Define the merit function - if Regul then pass Lbda* weights 
+"""
+ZMerit = Merit(ExecTimeReport=False,
+               with_specindexdata=False,
+               Regul=False,
+               LbdaSigma_gRegul=1.,
+               MaxOptDepth=3.,
+               LbdaOptDepthRegul=10.,
+               LbdaamaxRegul=1.)
+
 domain = [
-    ['log(Tdust)', np.log10(30.), [0., 3]],
+    ['log(Tdust)', np.log10(15.), [0., 3]],
     #['q_dustexpo', -3.5, [-3.99, -2.]],
     #['f_grain', 1., [0., 1.]],
     ['log(amax)', np.log10(1.), [np.log10(1E-4), np.log10(100.)]],  #cm
-    ['log(Sigma_g)',
-     np.log10(30.), [np.log10(1E-5), np.log10(1E3)]]
+    ['log(Sigma_g)',  np.log10(10.), [np.log10(1E-5), np.log10(1E3)]]
 ]  # g/cm2
+
+
 domain_MCMC = domain
-domain_CG = [['log(Tdust)', np.log10(100.), [0., 3]],
-             ['log(Sigma_g)',
-              np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]]
+#domain_CG = [['log(Tdust)', np.log10(100.), [0., 3]],
+#             ['log(Sigma_g)',
+#              np.log10(0.1), [np.log10(1E-5), np.log10(1E3)]]]
 
 nvars = len(domain)
 print("nvars: ", nvars)
@@ -157,9 +155,10 @@ OptimM = SEDOptim.OptimM(
     RunConjGrad=False,
     RunMCMC=True,
     MCMCresult_UseMedian=False,
-    MCMC_Nit=8000,  #10000,  # 200 MCMC iterations
+    MCMC_Nit=10000,  #10000,  # 200 MCMC iterations
     nwalkers_pervar=12,  # 10
-    burn_in=1600,  #8000,  #100
+    mcmcinitball_relrange=0.01., # between 0 and 1.
+    burn_in=8000,  #8000,  #100
     n_cores_MCMC=1,
     ChainPlots=Reportflags,
     CornerPlots=Reportflags,
@@ -167,7 +166,7 @@ OptimM = SEDOptim.OptimM(
     MCMCProgress=Reportflags,
     SummaryPlots=Reportflags,
     filename_tag=SED_filename_tag,
-    PhysicalInit=True,
+    PhysicalInit=True, # initialize each LOS with physical approximations
     domain=domain)
 
 ImOptim.exec_imoptim(
@@ -180,8 +179,8 @@ ImOptim.exec_imoptim(
     mfreq_imhdus,
     # mfreq_specindexhdus,
     # mfreq_errspecindexhdus,
-    n_cores_map=6,
-    intensity_threshold=[1, 14],  # ifreq, nthres
+    n_cores_map=100,
+    intensity_threshold=[2, 10],  # 5   ifreq, nthres
     files_images=files_images,
     # files_specindex=files_specindex,
     SingleLOS=SingleLOS,
@@ -192,9 +191,9 @@ ImOptim.exec_imoptim(
 if SingleLOS is None:
     fileout = outputdir + 'fig_dustparams.png'
 
-    errthreshs = [['log(Tdust)', 0.2], ['log(amax)', 1.],
-                  ['log(Sigma_g)', 0.3]]
-
+    #errthreshs = [['log(Tdust)', 0.2], ['log(amax)', 1.],
+    #              ['log(Sigma_g)', 0.3]]
+    errthreshs = None
     fileout = outputdir + 'fig_dustparams.png'
     SummaryFigDust.exec_summary(outputdir,
                                 domain,

@@ -5,8 +5,10 @@ gen_summary_dustparams.py
 
 
 
-example script to fit images:
+example script to fit images with emcee
 drive_imoptim_wb3.py
 
-and with a filling factor image:
-drive_imoptim_wb3_fillfactor.py
+example script to fit images with dynesty
+drive_imoptim_wb3_dyn.py
+
+use SingeLOS in drive_imoptim_wb3_dyn.py to fit a single line of sight
