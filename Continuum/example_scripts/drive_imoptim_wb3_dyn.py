@@ -36,13 +36,15 @@ files_images = [
     datadir + 'B3_z.fits',
 ]
 
-outputdir = './output_imoptim_wb3_dyn_ncores_noregul/'
+outputdir = './output_imoptim_wb3_dyn_ncores_optdepth_amax_Sigma_g_regul/'
 SED_filename_tag = ''
 SingleLOS = None
 #SED_filename_tag = '_amaxpeak'
-#SingleLOS = [25, 45]  #
-#SED_filename_tag = '_Ering'
-#SingleLOS = [13, 38]  #
+#SingleLOS = [20, 41]  #
+#SED_filename_tag = '_Wring'
+#SingleLOS = [36, 29]  #
+#SED_filename_tag = '_B4peak'
+#SingleLOS = [37, 42]  #
 ZSetup = AModelSED.Setup(
     filetag='',  # False
     PrintChi2s=True,
@@ -69,7 +71,7 @@ obsfreqs = np.array([671E9, 351E9, 145E9, 97.5E9])
 rmsnoises = 1E6 * np.array([8.6e-05,
                             2.6e-05,
                             4.7e-06,
-                            5.4e-06,
+                            3*5.4e-06,
                             ])  #rms noise in uJy/beam
 
 fluxcal_accuracy = np.array([0.1, 0.1, 0.05, 0.05])
@@ -123,11 +125,12 @@ Define the merit function - if Regul then pass Lbda* weights
 """
 ZMerit = Merit(ExecTimeReport=False,
                with_specindexdata=False,
-               Regul=False,
-               LbdaSigma_gRegul=1.,
-               MaxOptDepth=3.,
+               Regul=True,
+               LbdaSigma_gRegul=10.,
+               MaxOptDepth=1.,
+               LbdaTdustRegul=10.,
                LbdaOptDepthRegul=10.,
-               LbdaamaxRegul=1.)
+               LbdaamaxRegul=100.)
 
 domain = [
     ['log(Tdust)', np.log10(15.), [0., 3]],

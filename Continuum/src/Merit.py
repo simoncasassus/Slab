@@ -21,6 +21,7 @@ class Merit():
         LbdaSigma_gRegul=1.,
         MaxOptDepth=3.,
         LbdaOptDepthRegul=1E3,
+        LbdaTdustRegul=0.,
         LbdaamaxRegul=1.,
         Regul=False,
     ):
@@ -61,6 +62,7 @@ class Merit():
                        LbdaSigma_gRegul=self.LbdaSigma_gRegul,
                        MaxOptDepth=self.MaxOptDepth,
                        LbdaOptDepthRegul=self.LbdaOptDepthRegul,
+                       LbdaTdustRegul=self.LbdaTdustRegul,
                        LbdaamaxRegul=self.LbdaamaxRegul,
                        Regul=self.Regul)
         #chi2 = retvals[0]

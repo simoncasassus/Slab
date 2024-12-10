@@ -50,6 +50,7 @@ def logL(ZData,
          MaxOptDepth = 3.,
          LbdaOptDepthRegul = 10.,
          LbdaamaxRegul = 1.,
+         LbdaTdustRegul=0.,
          with_specindexdata=False,
          ASED4alphas=False,
          Regul=False):
@@ -89,13 +90,16 @@ def logL(ZData,
 
     if Regul:
         regulterm = 0.
-        #LbdaMassRegul = 0.
+        if ASED.Tdust > ASED.Tdust_0:
+            STdustRegul = ((ASED.Tdust - ASED.Tdust_0) / ASED.Tdust_0)**2
+            regulterm += LbdaTdustRegul * STdustRegul
+            
         if ASED.Sigma_g > ASED.Sigma_g_0:
             SMassRegul = ((ASED.Sigma_g - ASED.Sigma_g_0) / ASED.Sigma_g_0)**2
             regulterm += LbdaSigma_gRegul * SMassRegul
             #print("REgularizing Sigma ", chi2, SMassRegul)
 
-        amax_c = 0.1  # cm
+        amax_c = 1.  # cm
         if ASED.amax > amax_c:
             SamaxRegul = ((ASED.amax - amax_c) / amax_c)**2
             regulterm += LbdaamaxRegul * SamaxRegul
