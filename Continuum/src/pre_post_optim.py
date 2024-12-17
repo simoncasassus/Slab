@@ -14,6 +14,7 @@ from .Likelihood import lnlike
 c_MKS = const.c.value  # m/s
 k_B = const.k_B.value
 
+
 def Tbrightness(I_nu, nu):
     # input I_nu in Jy/srx
     # input nu in Hz
@@ -27,7 +28,6 @@ def Tbrightness(I_nu, nu):
                                             (c_light**2 * I_nu * 1E-26))))
 
     return Tb
-
 
 
 def initoptim(OptimM, ZSetup, ZData, ASED, ZMerit):
@@ -46,71 +46,115 @@ def initoptim(OptimM, ZSetup, ZData, ASED, ZMerit):
 
     #initial conditions
     Tdust_init = 30.
+    ASED.Tdust_0 = Tdust_init
     Sigma_g_init = 1.
     inus_sorted = np.argsort(ZData.nus)
     for iname, aname in enumerate(names):
         if 'Tdust' in aname:
             inus_sorted_desc = np.flip(inus_sorted)
+            Tinits_low = np.zeros(len(inus_sorted))
+            Tinits_high = np.zeros(len(inus_sorted))
+
             found = False
             for inu_highest in inus_sorted_desc:
                 nu_highest = ZData.nus[inu_highest]
                 Inu_highest = ZData.Inus[inu_highest]
-                if Inu_highest > 0.:
-                    Tdust_init = Tbrightness(Inu_highest, nu_highest)
-                    if OptimM.PhysicalInit:
-                        dolog = False
-                        m = re.search('log\((.*)\)', aname)
-                        if m:
-                            dolog = True
-                        if dolog:
-                            sample_params[iname] = np.log10(Tdust_init)
-                        else:
-                            sample_params[iname] = Tdust_init
-                    found=True
-                    break
-
+                rms_highest = ZData.rmsnoises[inu_highest]
+                Tdust = Tbrightness(Inu_highest, nu_highest)
+                if Inu_highest > rms_highest:
+                    Tinits_high[inu_highest] = Tdust * (
+                        700E9 / nu_highest
+                    )**0.  # fudge beta opt index ~ 2  to account for optically thin regions
+                    Tinits_low[inu_highest] = Tdust
+                    if not found:
+                        Tdust_init = Tdust
+                        ASED.Tdust_0 = Tdust_init
+                        if OptimM.PhysicalInit:
+                            dolog = False
+                            m = re.search('log\((.*)\)', aname)
+                            if m:
+                                dolog = True
+                            if dolog:
+                                sample_params[iname] = np.log10(Tdust_init)
+                            else:
+                                sample_params[iname] = Tdust_init
+                    found = True
             if not found:
                 sys.exit("pre_post_optim, Tdust_init: only noise here")
 
-            ASED.Tdust_0 = Tdust_init
+            ASED.Tdust_low = np.min(Tinits_low[(Tinits_low > 0)])
+            ASED.Tdust_high = np.max(Tinits_high[(Tinits_high > 0)])
             if OptimM.Report:
                 print("Tdust_init", Tdust_init)
-                
+                print("ASED.Tdust_high", ASED.Tdust_high, "ASED.Tdust_low",
+                      ASED.Tdust_low, "Tdust_init", Tdust_init)
+
     for iname, aname in enumerate(names):
         if 'Sigma_g' in aname:
             beta = 1
             inus_sorted = np.argsort(ZData.nus)
             found = False
+            Sigma_g_inits_low = np.zeros(len(inus_sorted))
+            Sigma_g_inits_high = np.zeros(len(inus_sorted))
+            Sigma_g_inits = np.zeros(len(inus_sorted))
             for inu_lowest in inus_sorted:
-                if ZData.Inus[inu_lowest] > 0:
+                if ZData.Inus[inu_lowest] > ZData.rmsnoises[inu_lowest]:
                     nu_lowest = ZData.nus[inu_lowest]
                     Inu_lowest = ZData.Inus[inu_lowest]
+
+                    kappa_nu = 0.02 * (nu_lowest / 230609583076.92312)**beta
+                    # cm2 / g , Beckwith
+                    #  (0.02 cm^2/g / kappa_1.3mm)
+
+                    # RJ = (2. * k_B * nu_lowest**2 / c_light**2) Tb
+                    # I = RJ * tau
+                    tau0 = Inu_lowest * 1E-26 / (
+                        (2. * k_B * nu_lowest**2 / c_MKS**2) * ASED.Tdust_0)
+                    aSigma_g = tau0 / kappa_nu
+                    Sigma_g_inits[inu_lowest] = aSigma_g
+                    
+                    tau_high = Inu_lowest * 1E-26 / (
+                        (2. * k_B * nu_lowest**2 / c_MKS**2) * ASED.Tdust_low)
+
+                    tau_low = Inu_lowest * 1E-26 / (
+                        (2. * k_B * nu_lowest**2 / c_MKS**2) * ASED.Tdust_high)
+
+                    Sigma_g_inits_low[inu_lowest] = tau_low / kappa_nu
+                    Sigma_g_inits_high[inu_lowest] = tau_high / kappa_nu
+
+                    if not found:
+                        Sigma_g_init = tau0 / kappa_nu
+                        ASED.Sigma_g_0 = Sigma_g_init
+
+                        if OptimM.PhysicalInit and (Inu_lowest > 0):
+                            m = re.search('log\((.*)\)', aname)
+                            dolog = False
+                            if m:
+                                dolog = True
+                            if dolog:
+                                sample_params[iname] = np.log10(Sigma_g_init)
+                            else:
+                                sample_params[iname] = Sigma_g_init
+
                     found = True
-                    break
+
             if not found:
                 sys.exit("pre_post_optim, Sigma_g_0: only noise here")
-                    
-            kappa_nu = 0.02 * (nu_lowest / 230609583076.92312)**beta
-            # cm2 / g , Beckwith
-            #  (0.02 cm^2/g / kappa_1.3mm)
 
-            # RJ = (2. * k_B * nu_lowest**2 / c_light**2) Tb
-            # I = RJ * tau
-            tau0 = Inu_lowest * 1E-26 / (
-                (2. * k_B * nu_lowest**2 / c_MKS**2) * Tdust_init)
-            Sigma_g_init = tau0 / kappa_nu
-            ASED.Sigma_g_0 = Sigma_g_init
-            if OptimM.PhysicalInit and (Inu_lowest > 0):
-                m = re.search('log\((.*)\)', aname)
-                dolog = False
-                if m:
-                    dolog = True
-                if dolog:
-                    sample_params[iname] = np.log10(Sigma_g_init)
-                else:
-                    sample_params[iname] = Sigma_g_init
+            #ASED.Sigma_g_low = np.min(
+            #    Sigma_g_inits_low[(Sigma_g_inits_low > 0)])
+            #ASED.Sigma_g_high = np.min(
+            #    Sigma_g_inits_high[(Sigma_g_inits_high > 0)])
+
+            ASED.Sigma_g_low = np.min(Sigma_g_inits[(Sigma_g_inits > 0)])
+            ASED.Sigma_g_high = np.max(Sigma_g_inits[(Sigma_g_inits > 0)])
+            if ASED.Sigma_g_low > ASED.Sigma_g_high/10.:
+                ASED.Sigma_g_low = ASED.Sigma_g_low/10.
+            
             if OptimM.Report:
-                print("Sigma_g_init", Sigma_g_init)
+                print("ASED.Sigma_g_high", ASED.Sigma_g_high,
+                      "ASED.Sigma_g_low", ASED.Sigma_g_low, "Sigma_g_init",
+                      Sigma_g_init)
 
     if OptimM.Inherit_Init:
         for iname, aname in enumerate(names):
@@ -140,7 +184,7 @@ def initoptim(OptimM, ZSetup, ZData, ASED, ZMerit):
     if ZMerit.with_specindexdata:
         #ASED4alphas = AModelSED.MSED(ZSetup)
         #ASED4alphas.copy(ASED) DEV
-        ASED4alphas=deepcopy(ASED)
+        ASED4alphas = deepcopy(ASED)
         if ASED4alphas.GoInterp:
             ASED4alphas.gridfiletag = '_4alphas'
         ASED4alphas.nus = ZData.nus_alphas
@@ -153,4 +197,3 @@ def initoptim(OptimM, ZSetup, ZData, ASED, ZMerit):
         print("chi2 = %e " % (-2 * init_lnlike))
 
     return nvar, sample_params, names, bnds, ASED4alphas, x_free_init
-

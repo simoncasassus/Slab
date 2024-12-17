@@ -401,6 +401,8 @@ class MSED(Setup):
             Sigma_d=0,
             Sigma_g_0=100.,  # optically thin Beckwith column
             Tdust_0=30.,  # optically thin Beckwith column
+            Tdust_high=1000.,  # optically thin Beckwith column
+            Tdust_low=10.,  # optically thin Beckwith column
             a_sizes=[],
             Sigma_as=[],
             lambdas=[],

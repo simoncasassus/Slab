@@ -283,8 +283,6 @@ def exec_imoptim(
 
     tasks = []
     ny, nx = im_canvas.shape
-    rmsnoises /= ZData.omega_beam
-    rmsnoises *= 1E-6
     hdr_canvas = hdu_canvas[0].header
     ivec = np.arange(0, nx)
     jvec = np.arange(0, ny)

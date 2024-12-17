@@ -90,13 +90,37 @@ def logL(ZData,
 
     if Regul:
         regulterm = 0.
-        if ASED.Tdust > ASED.Tdust_0:
-            STdustRegul = ((ASED.Tdust - ASED.Tdust_0) / ASED.Tdust_0)**2
-            regulterm += LbdaTdustRegul * STdustRegul
-            
-        if ASED.Sigma_g > ASED.Sigma_g_0:
-            SMassRegul = ((ASED.Sigma_g - ASED.Sigma_g_0) / ASED.Sigma_g_0)**2
-            regulterm += LbdaSigma_gRegul * SMassRegul
+
+        bracketTdust = True
+        if bracketTdust:
+            scaleuplimit = 1.
+            if ASED.Tdust > scaleuplimit * ASED.Tdust_high:
+                STdustRegul = ((ASED.Tdust - scaleuplimit * ASED.Tdust_high) / (scaleuplimit * ASED.Tdust_high))**2
+                regulterm += LbdaTdustRegul * STdustRegul
+
+            if ASED.Tdust < ASED.Tdust_low:
+                STdustRegul = ((ASED.Tdust - ASED.Tdust_low) / ASED.Tdust_low)**2
+                regulterm += LbdaTdustRegul * STdustRegul
+        else:
+            if ASED.Tdust > ASED.Tdust_0:
+                STdustRegul = ((ASED.Tdust - ASED.Tdust_0) / ASED.Tdust_0)**2
+                regulterm += LbdaTdustRegul * STdustRegul
+
+        
+        bracketSigma_g = True
+        if bracketSigma_g:
+            if ASED.Sigma_g > ASED.Sigma_g_high:
+                SSigma_gRegul = ((ASED.Sigma_g - ASED.Sigma_g_high) / ASED.Sigma_g_high)**2
+                regulterm += LbdaSigma_gRegul * SSigma_gRegul
+
+            if ASED.Sigma_g < ASED.Sigma_g_low:
+                SSigma_gRegul = ((ASED.Sigma_g - ASED.Sigma_g_low) / ASED.Sigma_g_low)**2
+                regulterm += LbdaSigma_gRegul * SSigma_gRegul
+
+        else:
+            if ASED.Sigma_g > ASED.Sigma_g_0:
+                SMassRegul = ((ASED.Sigma_g - ASED.Sigma_g_0) / ASED.Sigma_g_0)**2
+                regulterm += LbdaSigma_gRegul * SMassRegul
             #print("REgularizing Sigma ", chi2, SMassRegul)
 
         amax_c = 1.  # cm

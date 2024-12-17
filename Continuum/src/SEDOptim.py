@@ -57,7 +57,7 @@ class Data():
             ######################################################################
             nus=None,
             Inus=None,
-            rmsnoises=None,
+            rmsnoises=None, # uJy/beam
             rmsnoises_nu1s=None,
             rmsnoises_nu2s=None,
             sInus=None,  # standard deviation error 
@@ -77,6 +77,10 @@ class Data():
                 print("Data> setting ", a_attribute, " to ",
                       initlocals[a_attribute])
             setattr(self, a_attribute, initlocals[a_attribute])
+        if rmsnoises is not None:
+            rmsnoises /= self.omega_beam
+            rmsnoises *= 1E-6 # -> Jy/sr
+            self.rmsnoises = rmsnoises
 
         self.prep()
 
