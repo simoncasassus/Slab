@@ -36,7 +36,7 @@ files_images = [
     datadir + 'B3_z.fits',
 ]
 
-outputdir = './output_imoptim_wb3_dyn_ncores_optdepth_amax_Sigma_g_regul/'
+outputdir = './output_imoptim_wb3_dyn_ncores_Tdust_optdepth_amax_Sigma_g_bracketregul/'
 SED_filename_tag = ''
 SingleLOS = None
 #SED_filename_tag = '_amaxpeak'
@@ -68,11 +68,12 @@ omega_beam = omega_beams[0]
 
 obsfreqs = np.array([671E9, 351E9, 145E9, 97.5E9])
 
-rmsnoises = 1E6 * np.array([8.6e-05,
-                            2.6e-05,
-                            4.7e-06,
-                            3*5.4e-06,
-                            ])  #rms noise in uJy/beam
+rmsnoises = 1E6 * np.array([
+    8.6e-05,
+    2.6e-05,
+    4.7e-06,
+    3 * 5.4e-06,
+])  #rms noise in uJy/beam
 
 fluxcal_accuracy = np.array([0.1, 0.1, 0.05, 0.05])
 
@@ -91,13 +92,17 @@ if not os.path.isfile(ZSetup.griddir + 'kappa_abs_grid.fits'):
 #obsfreqs_alphas = np.array(
 #    [100E9, 130E9, 150E9, 180E9, 230E9, 260E9, 345E9, 375E9])
 
-ZData = SEDOptim.Data()
-ZData.nus = obsfreqs
+ZData = SEDOptim.Data(rmsnoises=rmsnoises,
+                      nus=obsfreqs,
+                      omega_beam=omega_beam,
+                      VerboseInit=True)
+
+#ZData.nus = obsfreqs
 #ZData.nu1s_alphas = None
 #ZData.nu2s_alphas = None
 #ZData.nus_alphas = obsfreqs_alphas
-ZData.omega_beam = omega_beam
-ZData.rmsnoises = rmsnoises
+#ZData.omega_beam = omega_beam
+#ZData.rmsnoises = rmsnoises
 
 #ZData.nus_alphas = obsfreqs_alphas
 
@@ -114,12 +119,8 @@ ZSED = AModelSED.MSED(
     N_asizes=1000,
     nus=obsfreqs)
 
-
-#Conmpute SED with 
+#Conmpute SED with
 #ZSED.calcul()
-
-
-
 """
 Define the merit function - if Regul then pass Lbda* weights 
 """
@@ -151,21 +152,20 @@ nvars = len(domain)
 print("nvars: ", nvars)
 
 Reportflags = SingleLOS is not None
-OptimM = SEDOptim.OptimM(
-    RunConjGrad=False,
-    RunSampler=True,
-    MCMCresult_UseMedian=False,
-    n_cores_MCMC=1,
-    n_cores_sampler=1,
-    sampler='dynesty',
-    ChainPlots=Reportflags,
-    CornerPlots=Reportflags,
-    Report=Reportflags,
-    MCMCProgress=Reportflags,
-    SummaryPlots=Reportflags,
-    filename_tag=SED_filename_tag,
-    PhysicalInit=True,
-    domain=domain)
+OptimM = SEDOptim.OptimM(RunConjGrad=False,
+                         RunSampler=True,
+                         MCMCresult_UseMedian=False,
+                         n_cores_MCMC=1,
+                         n_cores_sampler=1,
+                         sampler='dynesty',
+                         ChainPlots=Reportflags,
+                         CornerPlots=Reportflags,
+                         Report=Reportflags,
+                         MCMCProgress=Reportflags,
+                         SummaryPlots=Reportflags,
+                         filename_tag=SED_filename_tag,
+                         PhysicalInit=True,
+                         domain=domain)
 
 ImOptim.exec_imoptim(
     OptimM,
